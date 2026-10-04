@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0b0b" />
+  <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
+  <title>Recipe Vault</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <div class="eyebrow">PRIVATE RECIPE LIBRARY</div>
+      <h1 id="headerTitle">Recipes</h1>
+    </div>
+    <button class="icon-btn" id="quickImportBtn" aria-label="Import recipe" title="Import recipe">＋</button>
+  </header>
+
+  <main id="appMain">
+    <section class="page active" data-page="recipes">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input id="recipeSearch" type="search" placeholder="Search recipes, ingredients, tags…" autocomplete="off" />
+      </div>
+      <div class="filter-row" id="recipeFilters"></div>
+      <div class="section-row">
+        <div>
+          <div class="eyebrow">YOUR COLLECTION</div>
+          <h2>Recipe library</h2>
+        </div>
+        <select id="recipeSort" class="compact-select" aria-label="Sort recipes">
+          <option value="recent">Newest</option>
+          <option value="title">A–Z</option>
+          <option value="favorite">Favorites</option>
+        </select>
+      </div>
+      <div id="recipeGrid" class="recipe-grid"></div>
+      <div id="recipeEmpty" class="empty-card hidden">
+        <div class="empty-icon">⌑</div>
+        <h3>No recipes yet</h3>
+        <p>Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.</p>
+        <button class="primary" data-go="import">Import your first recipe</button>
+      </div>
+    </section>
+
+    <section class="page" data-page="cook">
+      <div class="intro-card">
+        <div class="eyebrow">WHAT CAN I MAKE?</div>
+        <h2>Match what you have</h2>
+        <p>Type ingredients loosely. The matcher tolerates plurals, preparation words, partial names and common synonyms.</p>
+        <div class="ingredient-entry-row">
+          <input id="availableIngredientInput" placeholder="e.g. tomato, pasta, parmesan" autocomplete="off" />
+          <button id="addAvailableIngredient" class="primary small">Add</button>
+        </div>
+        <div id="availableChips" class="chip-wrap"></div>
+        <label class="toggle-row">
+          <span>
+            <strong>Include pantry</strong>
+            <small>Use ingredients you have saved at home.</small>
+          </span>
+          <input id="includePantryToggle" type="checkbox" checked />
+        </label>
+      </div>
+
+      <div class="match-summary" id="matchSummary"></div>
+      <div id="matchGrid" class="recipe-grid"></div>
+      <div id="matchEmpty" class="empty-card hidden">
+        <div class="empty-icon">◎</div>
+        <h3>Add a few ingredients</h3>
+        <p>Your recipes will be ranked by how many required ingredients you already have.</p>
+      </div>
+    </section>
+
+    <section class="page" data-page="import">
+      <div class="import-tabs" id="importTabs">
+        <button class="active" data-import-type="text">Text</button>
+        <button data-import-type="website">Website</button>
+        <button data-import-type="file">File</button>
+        <button data-import-type="manual">Manual</button>
+      </div>
+
+      <div class="import-panel active" data-import-panel="text">
+        <div class="intro-card">
+          <div class="eyebrow">PASTE ANY RECIPE</div>
+          <h2>Text import</h2>
+          <textarea id="importText" rows="14" placeholder="Paste a recipe, caption, message or notes here…"></textarea>
+          <button id="parseTextBtn" class="primary wide">Parse recipe</button>
+        </div>
+      </div>
+
+      <div class="import-panel" data-import-panel="website">
+        <div class="intro-card">
+          <div class="eyebrow">FROM THE WEB</div>
+          <h2>Website or social link</h2>
+          <p>Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.</p>
+          <input id="websiteUrl" type="url" placeholder="https://…" />
+          <button id="parseWebsiteBtn" class="primary wide">Import from link</button>
+          <div class="privacy-note">Website import uses Jina Reader when a site cannot be read directly. The URL is sent to that external service for extraction.</div>
+        </div>
+      </div>
+
+      <div class="import-panel" data-import-panel="file">
+        <div class="intro-card">
+          <div class="eyebrow">PHOTO · PDF · VIDEO</div>
+          <h2>Import a file</h2>
+          <label class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept="image/*,application/pdf,video/*" multiple />
+            <span class="drop-icon">⇧</span>
+            <strong>Choose files</strong>
+            <small>Images, PDFs and downloaded recipe videos/Reels</small>
+          </label>
+          <div class="file-actions">
+            <label class="secondary button-like">
+              <input id="cameraInput" type="file" accept="image/*" capture="environment" />
+              Take photo
+            </label>
+          </div>
+          <label class="toggle-row">
+            <span>
+              <strong>Keep original source</strong>
+              <small>Store the imported image, PDF or video with the recipe.</small>
+            </span>
+            <input id="keepOriginalToggle" type="checkbox" checked />
+          </label>
+          <div class="privacy-note">OCR libraries are loaded on demand. Image/video OCR may need internet the first time. Recipe browsing and shopping remain offline.</div>
+        </div>
+      </div>
+
+      <div class="import-panel" data-import-panel="manual">
+        <div class="intro-card">
+          <div class="eyebrow">START FROM SCRATCH</div>
+          <h2>Manual recipe</h2>
+          <button id="manualRecipeBtn" class="primary wide">Create blank recipe</button>
+        </div>
+      </div>
+
+      <div id="importStatus" class="status-card hidden"></div>
+    </section>
+
+    <section class="page" data-page="shopping">
+      <div class="intro-card shopping-entry">
+        <div class="eyebrow">SHOPPING LIST</div>
+        <div class="shopping-add-row">
+          <input id="manualShoppingInput" placeholder="Add anything…" autocomplete="off" />
+          <button id="manualShoppingAdd" class="primary small">Add</button>
+        </div>
+      </div>
+      <div class="section-row shopping-controls">
+        <div>
+          <strong id="shoppingCount">0 items</strong>
+          <small id="shoppingRecipeCount"></small>
+        </div>
+        <button id="clearCheckedBtn" class="text-btn">Clear checked</button>
+      </div>
+      <div id="shoppingList" class="shopping-list"></div>
+      <div id="shoppingEmpty" class="empty-card hidden">
+        <div class="empty-icon">☐</div>
+        <h3>Your list is empty</h3>
+        <p>Add ingredients from any recipe, or type unrelated shopping items above.</p>
+      </div>
+    </section>
+
+    <section class="page" data-page="settings">
+      <div class="settings-group">
+        <div class="eyebrow">AT HOME</div>
+        <h2>Pantry</h2>
+        <p class="muted">Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.</p>
+        <div class="ingredient-entry-row">
+          <input id="pantryInput" placeholder="Add pantry ingredient…" autocomplete="off" />
+          <button id="pantryAddBtn" class="primary small">Add</button>
+        </div>
+        <div id="pantryChips" class="chip-wrap roomy"></div>
+      </div>
+
+      <div class="settings-group">
+        <div class="eyebrow">APPEARANCE</div>
+        <h2>Theme</h2>
+        <label class="setting-line">
+          <span>
+            <strong>Color theme</strong>
+            <small>Dark mode uses a true black background.</small>
+          </span>
+          <select id="themeSelect" class="compact-select">
+            <option value="system">System</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <div class="eyebrow">DATA</div>
+        <h2>Backup & restore</h2>
+        <p class="muted">Your data is stored locally on this device. Export a JSON backup before clearing browser/app data or moving phones.</p>
+        <label class="toggle-row">
+          <span>
+            <strong>Include recipe media</strong>
+            <small>Includes stored photos, PDFs and videos; backups can become large.</small>
+          </span>
+          <input id="backupMediaToggle" type="checkbox" checked />
+        </label>
+        <div class="button-grid">
+          <button id="exportBtn" class="secondary">Export JSON</button>
+          <label class="secondary button-like">
+            <input id="importBackupInput" type="file" accept="application/json,.json" />
+            Import JSON
+          </label>
+        </div>
+        <div id="storageInfo" class="storage-info"></div>
+      </div>
+
+      <div class="settings-group">
+        <div class="eyebrow">APP</div>
+        <h2>Install Recipe Vault</h2>
+        <p class="muted">Install it to your home screen for standalone use and Android share-sheet importing.</p>
+        <button id="installBtn" class="primary wide" disabled>Install app</button>
+        <div class="privacy-note">After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android's normal Share menu on supporting browsers.</div>
+      </div>
+
+      <div class="settings-group danger-zone">
+        <div class="eyebrow">RESET</div>
+        <h2>Clear app data</h2>
+        <button id="clearAllBtn" class="danger">Delete all recipes and lists</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="active" data-nav="recipes"><span>⌑</span><small>Recipes</small></button>
+    <button data-nav="cook"><span>◎</span><small>Cook</small></button>
+    <button data-nav="import"><span>＋</span><small>Import</small></button>
+    <button data-nav="shopping"><span>☐</span><small>Shopping</small></button>
+    <button data-nav="settings"><span>⚙</span><small>Settings</small></button>
+  </nav>
+
+  <dialog id="recipeDialog" class="modal recipe-modal">
+    <div class="modal-shell">
+      <div class="modal-top">
+        <button class="icon-btn ghost" data-close-dialog="recipeDialog">×</button>
+        <div class="modal-actions">
+          <button id="favoriteRecipeBtn" class="icon-btn ghost" title="Favorite">☆</button>
+          <button id="editRecipeBtn" class="icon-btn ghost" title="Edit">✎</button>
+        </div>
+      </div>
+      <div id="recipeDetail"></div>
+    </div>
+  </dialog>
+
+  <dialog id="editorDialog" class="modal editor-modal">
+    <form id="recipeEditor" class="modal-shell" method="dialog">
+      <div class="modal-top sticky">
+        <button type="button" class="icon-btn ghost" data-close-dialog="editorDialog">×</button>
+        <strong id="editorHeading">Review recipe</strong>
+        <button type="submit" class="primary small">Save</button>
+      </div>
+      <div class="editor-body">
+        <div id="editorMediaPreview" class="editor-media-preview hidden"></div>
+        <label>Title<input id="editTitle" required /></label>
+        <div class="two-col">
+          <label>Servings<input id="editServings" placeholder="e.g. 4" /></label>
+          <label>Category<input id="editCategory" placeholder="Dinner, baking…" /></label>
+        </div>
+        <label>Tags<input id="editTags" placeholder="Italian, vegetarian, quick…" /></label>
+        <label>Ingredients<textarea id="editIngredients" rows="10" placeholder="One ingredient per line"></textarea></label>
+        <label>Steps<textarea id="editSteps" rows="12" placeholder="One step per line"></textarea></label>
+        <label>Notes<textarea id="editNotes" rows="5"></textarea></label>
+        <label>Source URL<input id="editSourceUrl" type="url" placeholder="https://…" /></label>
+        <div class="editor-danger">
+          <button type="button" id="deleteRecipeBtn" class="danger hidden">Delete recipe</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="shoppingDialog" class="modal shopping-modal">
+    <div class="modal-shell">
+      <div class="modal-top sticky">
+        <button class="icon-btn ghost" data-close-dialog="shoppingDialog">×</button>
+        <strong>Add to shopping</strong>
+        <button id="confirmShoppingAdd" class="primary small">Add</button>
+      </div>
+      <div id="shoppingIngredientPicker" class="picker-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="confirmDialog" class="modal confirm-modal">
+    <div class="confirm-box">
+      <h3 id="confirmTitle">Are you sure?</h3>
+      <p id="confirmText"></p>
+      <div class="confirm-actions">
+        <button id="confirmCancel" class="secondary">Cancel</button>
+        <button id="confirmOk" class="danger">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
