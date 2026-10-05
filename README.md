@@ -1,16 +1,27 @@
-# Recipe Vault
+# MEMRISYS 2026 — per-photo titles and notes
 
-Local-first recipe library PWA for GitHub Pages.
+Every photo now supports its own editable metadata, whether it is attached to a talk/poster or still Unclassified.
 
-## Features
-- Import recipes from pasted text, websites, PDFs, photos and downloaded videos/Reels.
-- OCR supports English, Finnish and Italian.
-- Recipe parsing recognizes English, Finnish and Italian headings, units and common ingredient synonyms.
-- UI language can be switched between English, Finnish and Italian in Settings.
-- Parsed extra information is saved into Notes / extra information instead of being discarded.
-- Fuzzy ingredient matching and pantry-aware recipe suggestions.
-- Shopping list from recipe ingredients plus manual shopping items.
-- IndexedDB storage, JSON backup/restore, offline app shell and Android PWA share target.
+## Photo viewer
+Open any photo and you can edit:
+- **Photo title**
+- **Photo notes**
+
+Both fields autosave to that specific image.
+
+## Gallery
+Custom photo titles and short photo-note previews appear under thumbnails when present. Presentation grouping is unchanged.
+
+## PPTX export
+Photos remain on the correct topic-specific slides. A custom photo title is used as the photo caption, and photo notes are included beneath the corresponding image.
+
+Service-worker cache: v19.
 
 ## Deployment
-Upload the app files to the repository root. Add the deployment workflow separately as `.github/workflows/deploy.yml`, then set GitHub Pages Source to **GitHub Actions**.
+Replace:
+- `index.html`
+- `app.js`
+- `styles.css`
+- `service-worker.js`
+
+`README.md` is optional.

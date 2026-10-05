@@ -1,321 +1,335 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0b0b" />
-  <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
-  <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon-192.png" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="MEMRISYS 2026">
+  <meta name="description" content="Mobile-friendly conference calendar for the Darmstadt memristor program, 5–8 October 2026.">
+  <title>MEMRISYS 2026</title>
+  <link rel="manifest" href="./manifest-v13.webmanifest">
+  <link rel="icon" href="./memrisys-icon-v13-192.png">
+  <link rel="apple-touch-icon" href="./memrisys-icon-v13-180.png">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header class="app-header">
-    <div>
-      <div class="eyebrow" data-i18n="privateLibrary">PRIVATE RECIPE LIBRARY</div>
-      <h1 id="headerTitle">Recipes</h1>
-    </div>
-    <button class="icon-btn" id="quickImportBtn" aria-label="Import recipe" title="Import recipe">＋</button>
-  </header>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand-lockup" href="https://www.memrisys2026.org/" target="_blank" rel="noopener" aria-label="Open official MEMRISYS 2026 website">
+        <span class="brand-logo-wrap">
+          <img class="conference-logo" src="https://www.memrisys2026.org/_assets/a57faaf1d444d7622d584dccca25ccaf/Images/logo_v7.5_white.svg?1770040542=" alt="MEMRISYS 2026" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+          <span class="conference-logo-fallback" hidden>MEMRISYS 2026</span>
+        </span>
+        <span class="brand-subtitle">Darmstadt · 5–8 October 2026</span>
+      </a>
+      <button id="nowBtn" class="icon-btn" type="button" aria-label="Jump to current day">Now</button>
+    </header>
 
-  <main id="appMain">
-    <section class="page active" data-page="recipes">
-      <div class="search-wrap">
-        <span class="search-icon">⌕</span>
-        <input id="recipeSearch" type="search" placeholder="Search recipes, ingredients, tags…" data-i18n-placeholder="searchRecipes" autocomplete="off" />
-      </div>
-      <div class="filter-row" id="recipeFilters"></div>
-      <div class="section-row">
-        <div>
-          <div class="eyebrow" data-i18n="yourCollection">YOUR COLLECTION</div>
-          <h2 data-i18n="recipeLibrary">Recipe library</h2>
-        </div>
-        <select id="recipeSort" class="compact-select" aria-label="Sort recipes">
-          <option value="recent" data-i18n="newest">Newest</option>
-          <option value="title" data-i18n="az">A–Z</option>
-          <option value="favorite" data-i18n="favorites">Favorites</option>
-        </select>
-      </div>
-      <div id="recipeGrid" class="recipe-grid"></div>
-      <div id="recipeEmpty" class="empty-card hidden">
-        <div class="empty-icon">⌑</div>
-        <h3 data-i18n="noRecipesYet">No recipes yet</h3>
-        <p data-i18n="noRecipesText">Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.</p>
-        <button class="primary" data-go="import" data-i18n="importFirst">Import your first recipe</button>
-      </div>
-    </section>
+    <main id="main" class="main">
+      <section id="programView" class="view active" data-view="program">
+        <div class="day-tabs" id="dayTabs" aria-label="Conference days"></div>
 
-    <section class="page" data-page="cook">
-      <div class="intro-card">
-        <div class="eyebrow" data-i18n="whatCanIMake">WHAT CAN I MAKE?</div>
-        <h2 data-i18n="matchWhatYouHave">Match what you have</h2>
-        <p data-i18n="matcherHelp">Type ingredients loosely. The matcher tolerates plurals, preparation words, partial names and common synonyms.</p>
-        <div class="ingredient-entry-row">
-          <input id="availableIngredientInput" placeholder="e.g. tomato, pasta, parmesan" data-i18n-placeholder="availablePlaceholder" autocomplete="off" />
-          <button id="addAvailableIngredient" class="primary small" data-i18n="add">Add</button>
-        </div>
-        <div id="availableChips" class="chip-wrap"></div>
-        <label class="toggle-row">
-          <span>
-            <strong data-i18n="includePantry">Include pantry</strong>
-            <small data-i18n="includePantryHelp">Use ingredients you have saved at home.</small>
-          </span>
-          <input id="includePantryToggle" type="checkbox" checked />
-        </label>
-      </div>
+        <div class="hero-card" id="statusCard"></div>
 
-      <div class="match-summary" id="matchSummary"></div>
-      <div id="matchGrid" class="recipe-grid"></div>
-      <div id="matchEmpty" class="empty-card hidden">
-        <div class="empty-icon">◎</div>
-        <h3 data-i18n="addFewIngredients">Add a few ingredients</h3>
-        <p data-i18n="matchEmptyText">Your recipes will be ranked by how many required ingredients you already have.</p>
-      </div>
-    </section>
-
-    <section class="page" data-page="import">
-      <div class="import-tabs" id="importTabs">
-        <button class="active" data-import-type="text" data-i18n="text">Text</button>
-        <button data-import-type="website" data-i18n="website">Website</button>
-        <button data-import-type="file" data-i18n="file">File</button>
-        <button data-import-type="manual" data-i18n="manual">Manual</button>
-      </div>
-
-      <div class="import-panel active" data-import-panel="text">
-        <div class="intro-card">
-          <div class="eyebrow" data-i18n="pasteAnyRecipe">PASTE ANY RECIPE</div>
-          <h2 data-i18n="textImport">Text import</h2>
-          <textarea id="importText" rows="14" placeholder="Paste a recipe, caption, message or notes here…" data-i18n-placeholder="pasteRecipePlaceholder"></textarea>
-          <button id="parseTextBtn" class="primary wide" data-i18n="parseRecipe">Parse recipe</button>
-        </div>
-      </div>
-
-      <div class="import-panel" data-import-panel="website">
-        <div class="intro-card">
-          <div class="eyebrow" data-i18n="fromWeb">FROM THE WEB</div>
-          <h2 data-i18n="websiteSocial">Website or social link</h2>
-          <p data-i18n="websiteHelp">Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.</p>
-          <input id="websiteUrl" type="url" placeholder="https://…" />
-          <button id="parseWebsiteBtn" class="primary wide" data-i18n="importLink">Import from link</button>
-          <div class="privacy-note" data-i18n="websitePrivacy">Website import uses Jina Reader when a site cannot be read directly. The URL is sent to that external service for extraction.</div>
-        </div>
-      </div>
-
-      <div class="import-panel" data-import-panel="file">
-        <div class="intro-card">
-          <div class="eyebrow" data-i18n="photoPdfVideo">PHOTO · PDF · VIDEO</div>
-          <h2 data-i18n="importFile">Import a file</h2>
-          <label class="drop-zone" id="dropZone">
-            <input id="fileInput" type="file" accept="image/*,application/pdf,video/*" multiple />
-            <span class="drop-icon">⇧</span>
-            <strong data-i18n="chooseFiles">Choose files</strong>
-            <small data-i18n="fileTypes">Images, PDFs and downloaded recipe videos/Reels</small>
+        <div class="toolbar-card">
+          <label class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input id="programSearch" type="search" placeholder="Search talks, speakers, sessions…" autocomplete="off">
           </label>
-          <div class="file-actions">
-            <label class="secondary button-like">
-              <input id="cameraInput" type="file" accept="image/*" capture="environment" />
-              <span data-i18n="takePhoto">Take photo</span>
-            </label>
+          <div class="chip-row" id="roomFilters">
+            <button class="chip active" data-room="all">All rooms</button>
+            <button class="chip" data-room="europium">Europium</button>
+            <button class="chip" data-room="helium">Helium</button>
           </div>
-          <label class="toggle-row">
-            <span>
-              <strong data-i18n="keepOriginal">Keep original source</strong>
-              <small data-i18n="keepOriginalHelp">Store the imported image, PDF or video with the recipe.</small>
-            </span>
-            <input id="keepOriginalToggle" type="checkbox" checked />
+        </div>
+
+        <div id="programMeta" class="section-meta"></div>
+        <div id="programList" class="timeline"></div>
+      </section>
+
+      <section id="myView" class="view" data-view="my">
+        <div class="view-heading">
+          <div>
+            <div class="eyebrow">PERSONAL AGENDA</div>
+            <h2>My schedule</h2>
+          </div>
+          <span id="favoriteCount" class="count-badge">0</span>
+        </div>
+        <div id="mySchedule"></div>
+      </section>
+
+      <section id="galleryView" class="view" data-view="gallery">
+        <div class="view-heading">
+          <div>
+            <div class="eyebrow">CONFERENCE ARCHIVE</div>
+            <h2>Gallery</h2>
+          </div>
+          <span id="galleryCount" class="count-badge">0</span>
+        </div>
+
+        <div class="gallery-tabs" role="tablist" aria-label="Gallery sections">
+          <button class="gallery-tab active" type="button" data-gallery-panel="photos" role="tab" aria-selected="true">Photos</button>
+          <button class="gallery-tab" type="button" data-gallery-panel="notes" role="tab" aria-selected="false">Notes <span id="galleryNotesCount" class="gallery-tab-count">0</span></button>
+        </div>
+
+        <div id="galleryPhotosPanel" class="gallery-panel">
+          <div class="gallery-import-card">
+            <div>
+              <strong>Import photos by time</strong>
+              <p>Select conference photos from your phone. Capture times are compared with the programme, with starred sessions suggested first.</p>
+            </div>
+            <button id="smartPhotoImportBtn" class="primary-btn" type="button">Import photos</button>
+          </div>
+
+          <div id="galleryMeta" class="section-meta">
+            <span>Stored locally on this device</span>
+          </div>
+          <div id="galleryContent" class="gallery-content">
+            <div class="photo-loading">Loading gallery…</div>
+          </div>
+        </div>
+
+        <div id="galleryNotesPanel" class="gallery-panel" hidden>
+          <label class="search-wrap gallery-note-search">
+            <span class="search-icon">⌕</span>
+            <input id="galleryNoteSearch" type="search" placeholder="Search all notes, titles, speakers…" autocomplete="off">
           </label>
-          <div class="privacy-note" data-i18n="ocrPrivacy">OCR libraries are loaded on demand. Image/video OCR may need internet the first time. Recipe browsing and shopping remain offline.</div>
+          <div id="galleryNotesMeta" class="section-meta">
+            <span>All presentation notes</span>
+          </div>
+          <div id="galleryNotesContent" class="gallery-notes-content"></div>
         </div>
-      </div>
+      </section>
 
-      <div class="import-panel" data-import-panel="manual">
-        <div class="intro-card">
-          <div class="eyebrow" data-i18n="startScratch">START FROM SCRATCH</div>
-          <h2 data-i18n="manualRecipe">Manual recipe</h2>
-          <button id="manualRecipeBtn" class="primary wide" data-i18n="createBlank">Create blank recipe</button>
+      <section id="postersView" class="view" data-view="posters">
+        <div class="view-heading">
+          <div>
+            <div class="eyebrow">TUESDAY · 18:00–20:00</div>
+            <h2>Poster session</h2>
+          </div>
+          <span class="small-muted">Staatsarchiv</span>
         </div>
-      </div>
 
-      <div id="importStatus" class="status-card hidden"></div>
-    </section>
-
-    <section class="page" data-page="shopping">
-      <div class="intro-card shopping-entry">
-        <div class="eyebrow" data-i18n="shoppingList">SHOPPING LIST</div>
-        <div class="shopping-add-row">
-          <input id="manualShoppingInput" placeholder="Add anything…" data-i18n-placeholder="addAnything" autocomplete="off" />
-          <button id="manualShoppingAdd" class="primary small" data-i18n="add">Add</button>
-        </div>
-      </div>
-      <div class="section-row shopping-controls">
-        <div>
-          <strong id="shoppingCount">0 items</strong>
-          <small id="shoppingRecipeCount"></small>
-        </div>
-        <button id="clearCheckedBtn" class="text-btn" data-i18n="clearChecked">Clear checked</button>
-      </div>
-      <div id="shoppingList" class="shopping-list"></div>
-      <div id="shoppingEmpty" class="empty-card hidden">
-        <div class="empty-icon">☐</div>
-        <h3 data-i18n="listEmpty">Your list is empty</h3>
-        <p data-i18n="listEmptyText">Add ingredients from any recipe, or type unrelated shopping items above.</p>
-      </div>
-    </section>
-
-    <section class="page" data-page="settings">
-      <div class="settings-group">
-        <div class="eyebrow" data-i18n="atHome">AT HOME</div>
-        <h2 data-i18n="pantry">Pantry</h2>
-        <p class="muted" data-i18n="pantryHelp">Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.</p>
-        <div class="ingredient-entry-row">
-          <input id="pantryInput" placeholder="Add pantry ingredient…" data-i18n-placeholder="pantryPlaceholder" autocomplete="off" />
-          <button id="pantryAddBtn" class="primary small" data-i18n="add">Add</button>
-        </div>
-        <div id="pantryChips" class="chip-wrap roomy"></div>
-      </div>
-
-      <div class="settings-group">
-        <div class="eyebrow" data-i18n="languageEyebrow">LANGUAGE</div>
-        <h2 data-i18n="language">Language</h2>
-        <label class="setting-line no-border">
-          <span>
-            <strong data-i18n="appLanguage">App language</strong>
-            <small data-i18n="appLanguageHelp">Changes the interface language. Recipe parsing always understands English, Finnish and Italian.</small>
-          </span>
-          <select id="languageSelect" class="compact-select">
-            <option value="en">English</option>
-            <option value="fi">Suomi</option>
-            <option value="it">Italiano</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="settings-group">
-        <div class="eyebrow" data-i18n="appearance">APPEARANCE</div>
-        <h2 data-i18n="theme">Theme</h2>
-        <label class="setting-line">
-          <span>
-            <strong data-i18n="colorTheme">Color theme</strong>
-            <small data-i18n="darkHelp">Dark mode uses a true black background.</small>
-          </span>
-          <select id="themeSelect" class="compact-select">
-            <option value="system" data-i18n="system">System</option>
-            <option value="dark" data-i18n="dark">Dark</option>
-            <option value="light" data-i18n="light">Light</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="settings-group">
-        <div class="eyebrow" data-i18n="data">DATA</div>
-        <h2 data-i18n="backupRestore">Backup & restore</h2>
-        <p class="muted" data-i18n="backupHelp">Your data is stored locally on this device. Export a JSON backup before clearing browser/app data or moving phones.</p>
-        <label class="toggle-row">
-          <span>
-            <strong data-i18n="includeMedia">Include recipe media</strong>
-            <small data-i18n="includeMediaHelp">Includes stored photos, PDFs and videos; backups can become large.</small>
-          </span>
-          <input id="backupMediaToggle" type="checkbox" checked />
-        </label>
-        <div class="button-grid">
-          <button id="exportBtn" class="secondary" data-i18n="exportJson">Export JSON</button>
-          <label class="secondary button-like">
-            <input id="importBackupInput" type="file" accept="application/json,.json" />
-            <span data-i18n="importJson">Import JSON</span>
+        <div class="toolbar-card">
+          <label class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input id="posterSearch" type="search" placeholder="Search poster, abstract, author…" autocomplete="off">
           </label>
+          <div class="chip-row" id="posterFilters">
+            <button class="chip active" data-category="all">All</button>
+            <button class="chip" data-category="Material Functionality">Functionality</button>
+            <button class="chip" data-category="Material Processing">Processing</button>
+            <button class="chip" data-category="Applications">Applications</button>
+          </div>
         </div>
-        <div id="storageInfo" class="storage-info"></div>
-      </div>
 
-      <div class="settings-group">
-        <div class="eyebrow" data-i18n="app">APP</div>
-        <h2 data-i18n="installVault">Install Recipe Vault</h2>
-        <p class="muted" data-i18n="installHelp">Install it to your home screen for standalone use and Android share-sheet importing.</p>
-        <button id="installBtn" class="primary wide" disabled data-i18n="installApp">Install app</button>
-        <div class="privacy-note" data-i18n="shareHelp">After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android's normal Share menu on supporting browsers.</div>
-      </div>
+        <div id="posterMeta" class="section-meta"></div>
+        <div id="posterList" class="poster-list"></div>
+      </section>
 
-      <div class="settings-group danger-zone">
-        <div class="eyebrow" data-i18n="reset">RESET</div>
-        <h2 data-i18n="clearData">Clear app data</h2>
-        <button id="clearAllBtn" class="danger" data-i18n="deleteAll">Delete all recipes and lists</button>
-      </div>
-    </section>
-  </main>
+      <section id="settingsView" class="view" data-view="settings">
+        <div class="view-heading">
+          <div>
+            <div class="eyebrow">PREFERENCES</div>
+            <h2>Settings</h2>
+          </div>
+        </div>
 
-  <nav class="bottom-nav" aria-label="Main navigation">
-    <button class="active" data-nav="recipes"><span>⌑</span><small data-i18n="recipes">Recipes</small></button>
-    <button data-nav="cook"><span>◎</span><small data-i18n="cook">Cook</small></button>
-    <button data-nav="import"><span>＋</span><small data-i18n="import">Import</small></button>
-    <button data-nav="shopping"><span>☐</span><small data-i18n="shopping">Shopping</small></button>
-    <button data-nav="settings"><span>⚙</span><small data-i18n="settings">Settings</small></button>
-  </nav>
+        <div class="settings-section">
+          <h3>Appearance</h3>
+          <div class="setting-card">
+            <div>
+              <strong>Theme</strong>
+              <p>Dark mode uses a true black background.</p>
+            </div>
+            <select id="themeSelect" aria-label="Theme">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <div class="setting-card">
+            <div>
+              <strong>Compact schedule</strong>
+              <p>Reduce card spacing so more of the program fits on screen.</p>
+            </div>
+            <button id="compactToggle" class="toggle" type="button" role="switch" aria-checked="false"><span></span></button>
+          </div>
+        </div>
 
-  <dialog id="recipeDialog" class="modal recipe-modal">
-    <div class="modal-shell">
+        <div class="settings-section">
+          <h3>Time</h3>
+          <div class="setting-card">
+            <div>
+              <strong>Display times</strong>
+              <p>Program times are in Darmstadt local time.</p>
+            </div>
+            <select id="timeModeSelect" aria-label="Time display">
+              <option value="conference">Darmstadt</option>
+              <option value="device">My device</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>My info</h3>
+          <div class="profile-share-card">
+            <div class="profile-info">
+              <div class="eyebrow">CONTACT</div>
+              <strong class="profile-name">Anni Antola</strong>
+              <a class="profile-email" href="mailto:asanto@utu.fi">asanto@utu.fi</a>
+              <p>Wihuri Physical Laboratory<br>Department of Physics and Astronomy<br>University of Turku, Finland</p>
+            </div>
+            <div class="profile-qr">
+              <button id="shareQrBtn" class="qr-preview-btn" type="button" aria-label="Show QR code full screen">
+                <img src="./share-qr.jpg" alt="QR code for the MEMRISYS 2026 planner">
+              </button>
+              <div class="qr-caption">Scan to open this planner</div>
+              <button id="shareQrFullBtn" class="secondary-btn qr-full-btn" type="button">Show QR full screen</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Data</h3>
+          <div class="setting-card column">
+            <div>
+              <strong>Backup</strong>
+              <p>Export a JSON backup for app data, or download notes and presentation photos as a PowerPoint slideshow.</p>
+            </div>
+            <div class="button-row">
+              <button id="exportBtn" class="secondary-btn" type="button">Export JSON</button>
+              <button id="importBtn" class="secondary-btn" type="button">Import JSON</button>
+              <button id="exportPptxBtn" class="secondary-btn" type="button">Export PPTX</button>
+              <input id="importInput" type="file" accept="application/json" hidden>
+            </div>
+          </div>
+          <div class="setting-card">
+            <div>
+              <strong>Clear favorites</strong>
+              <p>Remove all starred talks and posters from this device.</p>
+            </div>
+            <button id="clearBtn" class="danger-btn" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>App</h3>
+          <div class="setting-card">
+            <div>
+              <strong>Install Memrisys 2026</strong>
+              <p id="installHelp">Install this planner on your home screen for app-like access.</p>
+            </div>
+            <button id="installBtn" class="secondary-btn" type="button">Install</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Venue</h3>
+          <a class="source-card venue-card" href="https://www.google.com/maps/search/?api=1&query=darmstadtium%2C%20Schlossgraben%201%2C%2064283%20Darmstadt%2C%20Germany" target="_blank" rel="noopener">
+            <div>
+              <strong>darmstadtium</strong>
+              <p>Schlossgraben 1 · 64283 Darmstadt · Open in Maps</p>
+            </div>
+            <span>↗</span>
+          </a>
+        </div>
+
+        <div class="settings-section">
+          <h3>Source</h3>
+          <a class="source-card" href="./program.pdf" target="_blank" rel="noopener">
+            <div>
+              <strong>Open original program PDF</strong>
+              <p>14 pages · schedule + 104 posters</p>
+            </div>
+            <span>↗</span>
+          </a>
+        </div>
+
+        <p class="footer-note">Everything in the planner is stored locally in your browser. No account or backend is required.</p>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-btn active" data-target="program"><span class="nav-icon">▦</span><span>Program</span></button>
+      <button class="nav-btn" data-target="my"><span class="nav-icon">★</span><span>My schedule</span></button>
+      <button class="nav-btn" data-target="gallery"><span class="nav-icon">▧</span><span>Gallery</span></button>
+      <button class="nav-btn" data-target="posters"><span class="nav-icon">▤</span><span>Posters</span></button>
+      <button class="nav-btn" data-target="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+    </nav>
+  </div>
+
+  <dialog id="detailModal" class="detail-modal">
+    <div class="modal-sheet">
       <div class="modal-top">
-        <button class="icon-btn ghost" data-close-dialog="recipeDialog">×</button>
-        <div class="modal-actions">
-          <button id="favoriteRecipeBtn" class="icon-btn ghost" title="Favorite">☆</button>
-          <button id="editRecipeBtn" class="icon-btn ghost" title="Edit">✎</button>
-        </div>
+        <button id="modalClose" class="icon-btn ghost" type="button" aria-label="Close">×</button>
+        <button id="modalStar" class="star-btn large" type="button" aria-label="Toggle favorite">☆</button>
       </div>
-      <div id="recipeDetail"></div>
-    </div>
-  </dialog>
-
-  <dialog id="editorDialog" class="modal editor-modal">
-    <form id="recipeEditor" class="modal-shell" method="dialog">
-      <div class="modal-top sticky">
-        <button type="button" class="icon-btn ghost" data-close-dialog="editorDialog">×</button>
-        <strong id="editorHeading">Review recipe</strong>
-        <button type="submit" class="primary small" data-i18n="save">Save</button>
-      </div>
-      <div class="editor-body">
-        <div id="editorMediaPreview" class="editor-media-preview hidden"></div>
-        <label><span data-i18n="title">Title</span><input id="editTitle" required /></label>
-        <div class="two-col">
-          <label><span data-i18n="servings">Servings</span><input id="editServings" placeholder="e.g. 4" data-i18n-placeholder="servingsPlaceholder" /></label>
-          <label><span data-i18n="category">Category</span><input id="editCategory" placeholder="Dinner, baking…" data-i18n-placeholder="categoryPlaceholder" /></label>
-        </div>
-        <label><span data-i18n="tags">Tags</span><input id="editTags" placeholder="Italian, vegetarian, quick…" data-i18n-placeholder="tagsPlaceholder" /></label>
-        <label><span data-i18n="ingredients">Ingredients</span><textarea id="editIngredients" rows="10" placeholder="One ingredient per line" data-i18n-placeholder="ingredientsPlaceholder"></textarea></label>
-        <label><span data-i18n="steps">Steps</span><textarea id="editSteps" rows="12" placeholder="One step per line" data-i18n-placeholder="stepsPlaceholder"></textarea></label>
-        <label><span data-i18n="notes">Notes / extra information</span><textarea id="editNotes" rows="6" data-i18n-placeholder="notesPlaceholder" placeholder="Tips, timing, substitutions, storage, or anything that did not fit elsewhere"></textarea></label>
-        <label><span data-i18n="sourceUrl">Source URL</span><input id="editSourceUrl" type="url" placeholder="https://…" /></label>
-        <div class="editor-danger">
-          <button type="button" id="deleteRecipeBtn" class="danger hidden" data-i18n="deleteRecipe">Delete recipe</button>
-        </div>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="shoppingDialog" class="modal shopping-modal">
-    <div class="modal-shell">
-      <div class="modal-top sticky">
-        <button class="icon-btn ghost" data-close-dialog="shoppingDialog">×</button>
-        <strong data-i18n="addToShopping">Add to shopping</strong>
-        <button id="confirmShoppingAdd" class="primary small" data-i18n="add">Add</button>
-      </div>
-      <div id="shoppingIngredientPicker" class="picker-list"></div>
-    </div>
-  </dialog>
-
-  <dialog id="confirmDialog" class="modal confirm-modal">
-    <div class="confirm-box">
-      <h3 id="confirmTitle">Are you sure?</h3>
-      <p id="confirmText"></p>
-      <div class="confirm-actions">
-        <button id="confirmCancel" class="secondary" data-i18n="cancel">Cancel</button>
-        <button id="confirmOk" class="danger">Delete</button>
-      </div>
+      <div id="modalContent"></div>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+  <input id="photoInput" type="file" accept="image/*" multiple hidden>
+  <input id="smartPhotoInput" type="file" accept="image/*" multiple hidden>
 
-  <script type="module" src="app.js"></script>
+  <dialog id="photoImportDialog" class="detail-modal">
+    <div class="modal-sheet photo-import-sheet">
+      <div class="modal-top">
+        <button id="photoImportClose" class="icon-btn ghost" type="button" aria-label="Close">×</button>
+        <strong>Match photos by time</strong>
+        <span class="modal-spacer" aria-hidden="true"></span>
+      </div>
+      <p class="photo-import-intro">Suggestions use camera capture time when available, otherwise the file date. Starred programme items are ranked first when sessions overlap.</p>
+      <div id="photoImportList" class="photo-import-list"></div>
+      <div class="photo-import-actions">
+        <button id="photoImportCancel" class="secondary-btn" type="button">Cancel</button>
+        <button id="photoImportSave" class="primary-btn" type="button">Save assignments</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="shareQrViewer" class="share-qr-viewer" role="dialog" aria-modal="true" aria-label="Share QR code" hidden>
+    <button id="shareQrClose" class="share-qr-close" type="button" aria-label="Close QR code">×</button>
+    <div class="share-qr-full-card">
+      <strong>Anni Antola</strong>
+      <div class="share-qr-affiliation">Wihuri Physical Laboratory · University of Turku</div>
+      <img src="./share-qr.jpg" alt="QR code linking to the MEMRISYS 2026 planner">
+      <div class="share-qr-full-caption">Scan to open the MEMRISYS 2026 planner</div>
+      <a href="mailto:asanto@utu.fi">asanto@utu.fi</a>
+    </div>
+  </div>
+
+  <div id="photoViewer" class="photo-viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>
+    <div class="photo-viewer-shell">
+      <button id="photoViewerClose" class="photo-viewer-close" type="button" aria-label="Close photo">×</button>
+      <div id="photoViewerStage" class="photo-viewer-stage">
+        <img id="photoViewerImage" alt="Presentation photo">
+      </div>
+      <div id="photoViewerControls" class="photo-viewer-controls">
+        <button id="photoViewerPrev" class="photo-viewer-nav" type="button" aria-label="Previous photo">‹</button>
+        <div id="photoViewerCounter" class="photo-viewer-counter" aria-live="polite"></div>
+        <button id="photoViewerNext" class="photo-viewer-nav" type="button" aria-label="Next photo">›</button>
+      </div>
+      <div id="photoViewerMeta" class="photo-viewer-meta">
+        <div class="photo-viewer-field">
+          <label for="photoViewerTitle">Photo title</label>
+          <input id="photoViewerTitle" type="text" maxlength="140" placeholder="Add a photo title…" autocomplete="off">
+        </div>
+        <div class="photo-viewer-field">
+          <label for="photoViewerNote">Photo notes</label>
+          <textarea id="photoViewerNote" rows="3" maxlength="2000" placeholder="Add notes about this photo…" spellcheck="true"></textarea>
+        </div>
+        <div id="photoViewerSaveStatus" class="photo-viewer-save-status">Saved automatically</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
