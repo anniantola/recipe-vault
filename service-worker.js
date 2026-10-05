@@ -1,9 +1,9 @@
-const CACHE = "memrisys2026-calendar-v19";
+const CACHE = "memrisys2026-calendar-v21";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles-v21.css",
+  "./app-v21.js",
   "./data.js",
   "./manifest-v13.webmanifest",
   "./memrisys-icon-v13-180.png",
@@ -49,9 +49,24 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if (event.request.mode === "navigate") {
+  if (
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css") ||
+    url.pathname.endsWith("/index.html")
+  ) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("./index.html"))
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE).then(cache => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => event.request.mode === "navigate"
+          ? caches.match("./index.html")
+          : caches.match(event.request))
     );
     return;
   }

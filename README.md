@@ -1,36 +1,39 @@
-# MEMRISYS 2026 — photo details fix v20
+# MEMRISYS 2026 — v21 forced-update build
 
-This version makes the per-photo editing unmistakable and also bypasses the old cached app assets.
+This build is deliberately redundant to defeat the stale PWA asset problem.
 
-## What changed
-Open **any** photo, including one already assigned to a talk or poster. Below the image/arrows there is now a visible **Photo details** panel containing:
+## Photo editing
+Open **any photo** (assigned to a presentation/poster or Unclassified). Under the image you should see:
 
-- **Title**
-- **Notes**
-- the presentation/poster the photo is attached to
+**Photo details**
+- Title
+- Notes
+- attached presentation/poster
 - autosave status
 
-The fields are available for classified and Unclassified photos alike.
+## How to verify the update
+Go to **Settings → App**. It should visibly say:
 
-The Gallery still shows saved custom titles and short note previews under thumbnails.
+`Build v21 · photo titles + photo notes`
 
-The PPTX export keeps assigned photos under the correct presentation and includes each photo's custom title/notes.
+If you do not see that text, the phone is still running an older deployed build.
 
-## Cache fix
-This release uses fresh asset URLs:
+## Why this update is different
+The exact same v21 JavaScript/CSS/service-worker content is published under all of these names:
+
+- `app.js`
 - `app-v20.js`
+- `app-v21.js`
+- `styles.css`
 - `styles-v20.css`
+- `styles-v21.css`
+- `service-worker.js`
 - `service-worker-v20.js`
+- `service-worker-v21.js`
 
-That avoids Android Chrome continuing to serve the earlier JavaScript/CSS files under the old filenames.
+So whether the installed PWA is still using the old index, the v20 index, or the v21 index, it receives the current code once these files are deployed.
+
+The service worker also now fetches HTML/JS/CSS network-first to make future code updates less sticky.
 
 ## Deployment
-Replace:
-- `index.html`
-
-Add:
-- `app-v20.js`
-- `styles-v20.css`
-- `service-worker-v20.js`
-
-The old `app.js`, `styles.css`, and `service-worker.js` may remain in the repo; v20 no longer references them.
+Upload **all files in the UPDATE zip** to the repository root and overwrite existing files when names already exist.

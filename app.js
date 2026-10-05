@@ -1,5 +1,6 @@
 
 (() => {
+  const APP_BUILD = "v21";
   const DATA = window.CONFERENCE_DATA;
   const STORAGE_KEY = "memristorCalendarStateV1";
   const PHOTO_DB = "memrisysPhotoDB";
@@ -1013,6 +1014,18 @@
     counter.textContent = total > 1 && current > 0 ? `${current} / ${total}` : "";
   }
 
+
+  function photoOwnerLabel(photo) {
+    if (!photo) return "";
+    if (photo.ownerType === "unclassified") return "Unclassified";
+    if (photo.ownerType === "poster") {
+      const p = posterById.get(photo.ownerId);
+      return p ? `Poster #${p.number} · ${p.title}` : "Poster";
+    }
+    const e = byId.get(photo.ownerId);
+    return e ? e.title : "Presentation";
+  }
+
   async function showPhotoViewerPhoto(photoId) {
     const photo = await getPhoto(photoId);
     if (!photo) return false;
@@ -1028,10 +1041,12 @@
     const titleInput = $("#photoViewerTitle");
     const noteInput = $("#photoViewerNote");
     const saveStatus = $("#photoViewerSaveStatus");
+    const owner = $("#photoViewerOwner");
     titleInput.value = String(photo.customTitle || "");
     noteInput.value = String(photo.customNote || "");
     titleInput.dataset.photoId = String(photo.id);
     noteInput.dataset.photoId = String(photo.id);
+    if (owner) owner.textContent = photoOwnerLabel(photo);
     if (saveStatus) saveStatus.textContent = "Saved automatically";
 
     updatePhotoViewerControls();
@@ -1088,10 +1103,12 @@
 
     const titleInput = $("#photoViewerTitle");
     const noteInput = $("#photoViewerNote");
+    const owner = $("#photoViewerOwner");
     titleInput.value = "";
     titleInput.dataset.photoId = "";
     noteInput.value = "";
     noteInput.dataset.photoId = "";
+    if (owner) owner.textContent = "";
 
     photoViewerIds = [];
     photoViewerIndex = -1;
@@ -2270,7 +2287,7 @@
     renderGallery();
     showView(state.view || "program");
     updateInstallUI();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js", { scope: "./", updateViaCache: "none" }).catch(()=>{});
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker-v21.js", { scope: "./", updateViaCache: "none" }).catch(()=>{});
   }
 
   window.addEventListener("beforeinstallprompt", event => {
