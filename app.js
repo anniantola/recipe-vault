@@ -1,2306 +1,1070 @@
+const DB_NAME = 'recipe-vault-db';
+const DB_VERSION = 1;
+const APP_VERSION = 2;
 
-(() => {
-  const APP_BUILD = "v21";
-  const DATA = window.CONFERENCE_DATA;
-  const STORAGE_KEY = "memristorCalendarStateV1";
-  const PHOTO_DB = "memrisysPhotoDB";
-  const PHOTO_STORE = "photos";
-  const defaultState = {
-    favorites: [],
-    posterFavorites: [],
-    theme: "system",
-    compact: false,
-    timeMode: "conference",
-    room: "all",
-    day: 1,
-    posterCategory: "all",
-    view: "program",
-    galleryMode: "photos",
-    notes: {}
-  };
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const uid = (prefix = 'id') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-  const $ = (s) => document.querySelector(s);
-  const $$ = (s) => [...document.querySelectorAll(s)];
-  const byId = new Map(DATA.schedule.map(x => [x.id, x]));
-  const posterById = new Map(DATA.posters.map(x => [x.id, x]));
-  let currentModal = null;
-  let deferredInstallPrompt = null;
-  let pendingPhotoImports = [];
-  let galleryObjectUrls = [];
-  let modalPhotoObjectUrls = [];
-  let photoViewerIds = [];
-  let photoViewerIndex = -1;
-  let galleryPhotoCount = 0;
-  let galleryNoteCount = 0;
-  let galleryNoteQuery = "";
+const UNIT_ALIASES = {
+  kg:'kg', g:'g', mg:'mg', l:'l', dl:'dl', cl:'cl', ml:'ml',
+  tbsp:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp', rkl:'tbsp',
+  'cucchiaio':'tbsp', 'cucchiai':'tbsp',
+  tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp', tl:'tsp',
+  'cucchiaino':'tsp', 'cucchiaini':'tsp',
+  cup:'cup', cups:'cup', 'tazza':'cup', 'tazze':'cup',
+  oz:'oz', ounce:'oz', ounces:'oz', lb:'lb', lbs:'lb', pound:'lb', pounds:'lb',
+  pinch:'pinch', pinches:'pinch', 'ripaus':'pinch', 'hyppysellinen':'pinch', 'pizzico':'pinch', 'pizzichi':'pinch',
+  can:'can', cans:'can', tin:'can', tins:'can', 'prk':'can', 'purkki':'can', 'lattina':'can', 'lattine':'can',
+  package:'package', packages:'package', packet:'package', packets:'package', 'pkt':'package', 'paketti':'package', 'ps':'package', 'pussi':'package', 'confezione':'package', 'confezioni':'package', 'bustina':'package', 'bustine':'package',
+  slice:'slice', slices:'slice', 'viipale':'slice', 'viipaletta':'slice', 'fetta':'slice', 'fette':'slice',
+  clove:'clove', cloves:'clove', 'kynsi':'clove', 'kyntta':'clove', 'spicchio':'clove', 'spicchi':'clove',
+  bunch:'bunch', bunches:'bunch', 'nippu':'bunch', 'mazzo':'bunch', 'mazzetto':'bunch',
+  piece:'piece', pieces:'piece', 'kpl':'piece', 'kappale':'piece', 'kappaletta':'piece', 'pezzo':'piece', 'pezzi':'piece',
+  'q.b':'to taste', 'qb':'to taste'
+};
+const UNITS = Object.keys(UNIT_ALIASES);
+const PREP_WORDS = new Set([
+  'fresh','freshly','chopped','finely','roughly','diced','sliced','minced','crushed','grated','shredded','peeled','seeded','divided','melted','softened','room','temperature','optional','to','taste','for','serving','garnish','small','medium','large','extra','virgin','drained','rinsed','cooked','uncooked','boneless','skinless','ground',
+  'tuore','tuoretta','hienonnettu','hienonnettuna','silputtu','pilkottu','pilkottuna','kuutioitu','viipaloitu','raastettu','murskattu','kuorittu','sulatettu','pehmennetty','valutettu','huuhdeltu','keitetty','paistettu','pieni','keskikokoinen','suuri','iso','maun','mukaan','koristeluun','tarjoiluun','halutessasi','valinnainen',
+  'fresco','fresca','freschi','fresche','tritato','tritata','finemente','grossolanamente','tagliato','tagliata','cubetti','affettato','affettata','macinato','macinata','schiacciato','schiacciata','grattugiato','grattugiata','sbucciato','sbucciata','fuso','fusa','ammorbidito','ammorbidita','scolato','scolata','sciacquato','sciacquata','cotto','cotta','crudo','cruda','piccolo','piccola','medio','media','grande','facoltativo','facoltativa','piacere','servire','guarnire','quanto','basta','of','and','di','del','della','dei','delle','da','per','ja'
+]);
+const SYNONYMS = [
+  [['scallion','scallions','spring onion','spring onions','green onion','green onions','kevätsipuli','kevätsipulia','cipollotto','cipollotti'],'spring onion'],
+  [['bell pepper','bell peppers','capsicum','capsicums','paprika','paprikaa','peperone','peperoni'],'bell pepper'],
+  [['aubergine','aubergines','eggplant','eggplants','munakoiso','munakoisoa','melanzana','melanzane'],'eggplant'],
+  [['courgette','courgettes','zucchini','zucchinis','kesäkurpitsa','kesäkurpitsaa','zucchina','zucchine'],'zucchini'],
+  [['coriander','cilantro','korianteri','korianteria','coriandolo'],'cilantro'],
+  [['caster sugar','superfine sugar'],'sugar'],
+  [['icing sugar','powdered sugar','confectioners sugar','confectioner sugar','tomusokeri','zucchero a velo'],'powdered sugar'],
+  [['plain flour','all purpose flour','all-purpose flour','vehnäjauho','vehnäjauhot','vehnäjauhoja','jauho','jauhot','jauhoja','farina','farina 00'],'flour'],
+  [['minced beef','ground beef','beef mince','naudan jauheliha','jauheliha','macinato di manzo','carne macinata di manzo'],'ground beef'],
+  [['minced pork','ground pork','pork mince','porsaan jauheliha','macinato di maiale'],'ground pork'],
+  [['double cream','heavy cream','heavy whipping cream','kuohukerma','kuohukermaa','kerma','kermaa','panna fresca','panna'],'heavy cream'],
+  [['single cream','light cream','ruokakerma','panna da cucina'],'light cream'],
+  [['parmesan cheese','parmigiano reggiano','parmigiano-reggiano','parmesaani','parmigiano'],'parmesan'],
+  [['chickpeas','chickpea','garbanzo beans','garbanzo','kikherne','kikherneet','cece','ceci'],'chickpea'],
+  [['kidney beans','red kidney beans','kidneypapu','kidneypavut','fagioli rossi'],'kidney bean'],
+  [['tomatoes','tomato','tomaatti','tomaatit','tomaattia','tomaatteja','pomodoro','pomodori'],'tomato'],
+  [['potatoes','potato','peruna','perunat','perunaa','perunoita','patata','patate'],'potato'],
+  [['onion','onions','sipuli','sipulit','sipulia','sipuleita','cipolla','cipolle'],'onion'],
+  [['garlic','valkosipuli','valkosipulia','aglio'],'garlic'],
+  [['olive oil','extra virgin olive oil','oliiviöljy','oliiviöljyä','olio di oliva','olio d oliva','olio extravergine di oliva'],'olive oil'],
+  [['butter','voi','voita','burro'],'butter'],
+  [['milk','maito','maitoa','latte intero','latte parzialmente scremato'],'milk'],
+  [['egg','eggs','muna','munat','munaa','munia','kananmuna','kananmunat','uovo','uova'],'egg'],
+  [['sugar','sokeri','sokeria','zucchero'],'sugar'],
+  [['salt','suola','suolaa','sale'],'salt'],
+  [['black pepper','pepper','mustapippuri','mustapippuria','pippuri','pippuria','pepe nero','pepe'],'black pepper'],
+  [['chicken','kana','kanaa','broileri','broileria','pollo'],'chicken'],
+  [['basil','basilika','basilikaa','basilico'],'basil'],
+  [['parsley','persilja','persiljaa','prezzemolo'],'parsley'],
+  [['carrot','carrots','porkkana','porkkanat','porkkanaa','porkkanoita','carota','carote'],'carrot'],
+  [['celery','selleri','selleriä','selleria','sedano'],'celery']
+];
 
-  function loadState() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      return {...defaultState, ...saved};
-    } catch {
-      return {...defaultState};
+const CATEGORY_RULES = [
+  ['Dessert', ['cake','cookie','cookies','brownie','brownies','dessert','pudding','tart','cheesecake','ice cream','kakku','keksit','jälkiruoka','jalkiruoka','torta','biscotti','dolce','dessert']],
+  ['Baking', ['bread','bun','buns','dough','bake','baked','muffin','muffins','scone','scones','leipä','leipa','pulla','taikina','paista','pane','impasto','forno']],
+  ['Breakfast', ['breakfast','oatmeal','porridge','pancake','pancakes','omelette','omelet','granola','aamiainen','puuro','pannukakku','lettu','colazione','porridge','pancake','frittata']],
+  ['Soup', ['soup','broth','bisque','stew','keitto','liemi','zuppa','brodo','minestra']],
+  ['Pasta', ['pasta','spaghetti','penne','tagliatelle','linguine','macaroni','lasagna','makaroni','lasagne']],
+  ['Salad', ['salad','salaatti','insalata']],
+  ['Drink', ['cocktail','smoothie','drink','latte','lemonade','juoma','cocktail','bevanda','limonata']],
+  ['Sauce', ['sauce','dressing','dip','pesto','kastike','salsa','condimento']],
+  ['Dinner', ['chicken','beef','pork','salmon','tofu','rice','curry','risotto','pizza','kana','nauta','possu','lohi','riisi','pollo','manzo','maiale','salmone','riso']]
+];
+const TAG_RULES = [
+  ['Italian', ['italian','italiano','italiana','parmesan','parmigiano','pasta','risotto','mozzarella','basil','basilico','gnocchi','pizza']],
+  ['Finnish', ['finnish','suomalainen','karjalan','lohikeitto','rieska','korvapuusti']],
+  ['Mexican', ['mexican','taco','tacos','tortilla','salsa','guacamole','quesadilla']],
+  ['Indian', ['indian','garam masala','tikka','dal','dahl','naan','curry']],
+  ['Asian', ['soy sauce','sesame oil','miso','gochujang','rice vinegar','noodles','soijakastike','seesamiöljy']],
+  ['Vegetarian', ['vegetarian','kasvis','vegetariano','vegetariana']],
+  ['Vegan', ['vegan','vegaaninen','vegano','vegana']],
+  ['Quick', ['15 minute','20 minute','30 minute','quick','easy','15 min','20 min','30 min','nopea','helppo','veloce','facile']],
+  ['High protein', ['high protein','protein-rich','protein rich','proteiinipitoinen','alto contenuto proteico']]
+];
+
+const HEADING_SETS = {
+  ingredients: new Set(['ingredients','ingredient','what youll need','ainekset','ainesosat','raaka aineet','ingredienti','occorrente']),
+  steps: new Set(['instructions','instruction','directions','direction','method','steps','step','preparation','ohje','ohjeet','valmistus','valmistusohje','valmistusohjeet','teko ohje','istruzioni','procedimento','preparazione','metodo']),
+  notes: new Set(['notes','note','tips','tip','cook s notes','huom','huomio','huomioita','vinkit','vinkki','lisatiedot','lisatieto','note dello chef','consigli','consiglio','suggerimenti']),
+  stop: new Set(['nutrition','nutrition facts','nutritional information','ravintoarvot','ravintosisalto','valori nutrizionali','informazioni nutrizionali','related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
+};
+const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content)$/i;
+const EXTRA_INFO_RE = /\b(prep time|cook time|total time|rest time|storage|store|substitut|tip|note|serve with|make ahead|freez|prep|valmistusaika|kypsennysaika|paistoaika|kokonaisaika|sailytys|säilytys|vinkki|huom|tarjoile|korvaa|pakastus|tempo di preparazione|tempo di cottura|tempo totale|riposo|conserva|conservazione|consiglio|sostitu|servire con)\b/i;
+
+let db;
+let state = {
+  pantry: [],
+  available: [],
+  shopping: [],
+  theme: 'system',
+  language: 'en',
+  activeRecipeFilter: 'All'
+};
+let recipes = [];
+let activeRecipeId = null;
+let editorDraft = null;
+let deferredInstallPrompt = null;
+let pendingShoppingRecipeId = null;
+let confirmResolver = null;
+
+const I18N = {
+  en: {
+    privateLibrary:'PRIVATE RECIPE LIBRARY', recipes:'Recipes', cook:'Cook', import:'Import', shopping:'Shopping', settings:'Settings',
+    searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newest:'Newest', az:'A–Z', favorites:'Favorites', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
+    whatCanIMake:'WHAT CAN I MAKE?', matchWhatYouHave:'Match what you have', matcherHelp:'Type ingredients loosely. The matcher understands English, Finnish and Italian, plus plurals, preparation words and common synonyms.', availablePlaceholder:'e.g. tomato, pasta, parmesan', add:'Add', includePantry:'Include pantry', includePantryHelp:'Use ingredients you have saved at home.', addFewIngredients:'Add a few ingredients', matchEmptyText:'Your recipes will be ranked by how many required ingredients you already have.',
+    text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses Jina Reader when a site cannot be read directly. The URL is sent to that external service for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
+    shoppingList:'SHOPPING LIST', addAnything:'Add anything…', clearChecked:'Clear checked', listEmpty:'Your list is empty', listEmptyText:'Add ingredients from any recipe, or type unrelated shopping items above.', atHome:'AT HOME', pantry:'Pantry', pantryHelp:'Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.', pantryPlaceholder:'Add pantry ingredient…', nothingSaved:'Nothing saved yet.',
+    languageEyebrow:'LANGUAGE', language:'Language', appLanguage:'App language', appLanguageHelp:'Changes the interface language. Recipe parsing always understands English, Finnish and Italian.', appearance:'APPEARANCE', theme:'Theme', colorTheme:'Color theme', darkHelp:'Dark mode uses a true black background.', system:'System', dark:'Dark', light:'Light', data:'DATA', backupRestore:'Backup & restore', backupHelp:'Your data is stored locally on this device. Export a JSON backup before clearing browser/app data or moving phones.', includeMedia:'Include recipe media', includeMediaHelp:'Includes stored photos, PDFs and videos; backups can become large.', exportJson:'Export JSON', importJson:'Import JSON', app:'APP', installVault:'Install Recipe Vault', installHelp:'Install it to your home screen for standalone use and Android share-sheet importing.', installApp:'Install app', installed:'Installed', shareHelp:'After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android’s normal Share menu on supporting browsers.', reset:'RESET', clearData:'Clear app data', deleteAll:'Delete all recipes and lists',
+    save:'Save', reviewRecipe:'Review recipe', editRecipe:'Edit recipe', title:'Title', servings:'Servings', servingsPlaceholder:'e.g. 4', category:'Category', categoryPlaceholder:'Dinner, baking…', tags:'Tags', tagsPlaceholder:'Italian, vegetarian, quick…', ingredients:'Ingredients', ingredientsPlaceholder:'One ingredient per line', steps:'Steps', stepsPlaceholder:'One step per line', notes:'Notes / extra information', notesPlaceholder:'Tips, timing, substitutions, storage, or anything that did not fit elsewhere', sourceUrl:'Source URL', deleteRecipe:'Delete recipe', addToShopping:'Add to shopping', cancel:'Cancel', delete:'Delete', source:'Source', optional:'optional', noIngredients:'No ingredients parsed.', noSteps:'No steps parsed.', originalVideo:'Original video', originalPdf:'Original PDF', openStoredPdf:'Open stored PDF ↗', checkWhatIHave:'Check what I have', alreadyAtHome:'Already at home', noIngredientsAvailable:'No ingredients available.',
+    all:'All', match:'match', ingredientSingular:'ingredient', ingredientPlural:'ingredients', atHomeLower:'at home', available:'available', recipeSingular:'recipe', recipePlural:'recipes', ranked:'ranked', itemSingular:'item', itemPlural:'items', from:'From', manualItems:'manual items', manualLower:'manual', movedToPantry:'moved to pantry', recipeSaved:'Recipe saved', recipeDeleted:'Recipe deleted', backupExported:'Backup exported', backupRestored:'Backup restored',
+    textSource:'Text', webSource:'Web', photoSource:'Photo', pdfSource:'PDF', videoSource:'Video', manualSource:'Manual', sharedSource:'Shared', servingsUpper:'SERVINGS', pasteFirst:'Paste a recipe first', parsingText:'Parsing text…', parsedReview:'Recipe parsed — review before saving', pasteLinkFirst:'Paste a website link first', readingWebsite:'Reading website…', websiteRead:'Website read — review the extracted recipe', linkFailed:'Could not read that link. Download/share the file or paste the recipe text.', loadingPdf:'Loading PDF reader…', loadingOcr:'Loading OCR…', sharedFailed:'The shared item could not be imported', buildingBackup:'Building backup…', readingBackup:'Reading backup…', restoreBackup:'Restore backup?', restoreBackupText:'This will replace the recipes, pantry and shopping list currently stored in this app.', restore:'Restore', backupImportFailed:'That backup could not be imported', deleteRecipeQ:'Delete recipe?', deleteRecipeText:'and its stored source media will be deleted from this device.', deleteAllQ:'Delete all app data?', deleteAllText:'This permanently removes every locally stored recipe, source file, pantry item and shopping-list item from this browser.', deleteEverything:'Delete everything', deletedAll:'All local data deleted', browserInstall:'Use your browser menu → Install app / Add to Home screen', appStartFailed:'Recipe Vault could not start', noVideoText:'No readable recipe text was detected in the sampled video frames. Add ingredients/steps manually while reviewing.', recipesSaved:'recipes saved locally.', storageUsed:'Browser storage:', used:'used', ofAbout:'of about', ingredientsAdded:'ingredients added', importingFirst:'Importing first file now'
+  },
+  fi: {
+    privateLibrary:'OMA RESEPTIKIRJASTO', recipes:'Reseptit', cook:'Kokkaa', import:'Tuo', shopping:'Ostokset', settings:'Asetukset',
+    searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
+    whatCanIMake:'MITÄ VOIN TEHDÄ?', matchWhatYouHave:'Etsi aineksillasi', matcherHelp:'Kirjoita ainekset vapaasti. Haku ymmärtää englantia, suomea ja italiaa sekä taivutuksia, valmistelusanoja ja tavallisia synonyymejä.', availablePlaceholder:'esim. tomaatti, pasta, parmesaani', add:'Lisää', includePantry:'Sisällytä kotivarasto', includePantryHelp:'Käytä myös kotiin tallennettuja aineksia.', addFewIngredients:'Lisää muutama aines', matchEmptyText:'Reseptit järjestetään sen mukaan, kuinka moni tarvittava aines sinulla jo on.',
+    text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää Jina Readeria, jos sivua ei voi lukea suoraan. URL lähetetään palveluun tekstin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
+    shoppingList:'OSTOSLISTA', addAnything:'Lisää mitä tahansa…', clearChecked:'Poista rastitetut', listEmpty:'Ostoslista on tyhjä', listEmptyText:'Lisää aineksia resepteistä tai kirjoita listaan muita ostoksia.', atHome:'KOTONA', pantry:'Kotivarasto', pantryHelp:'Kotivarastoon tallennetut ainekset jätetään automaattisesti pois, kun lisäät puuttuvat reseptiainekset ostoslistalle.', pantryPlaceholder:'Lisää aines kotivarastoon…', nothingSaved:'Ei vielä tallennettuja aineksia.',
+    languageEyebrow:'KIELI', language:'Kieli', appLanguage:'Sovelluksen kieli', appLanguageHelp:'Vaihtaa käyttöliittymän kielen. Reseptien jäsennys ymmärtää aina englantia, suomea ja italiaa.', appearance:'ULKOASU', theme:'Teema', colorTheme:'Väriteema', darkHelp:'Tumma tila käyttää täysin mustaa taustaa.', system:'Järjestelmä', dark:'Tumma', light:'Vaalea', data:'TIEDOT', backupRestore:'Varmuuskopiointi', backupHelp:'Tiedot tallennetaan paikallisesti tälle laitteelle. Vie JSON-varmuuskopio ennen selaimen/sovelluksen tietojen tyhjentämistä tai puhelimen vaihtoa.', includeMedia:'Sisällytä mediatiedostot', includeMediaHelp:'Sisältää tallennetut kuvat, PDF:t ja videot; varmuuskopio voi olla suuri.', exportJson:'Vie JSON', importJson:'Tuo JSON', app:'SOVELLUS', installVault:'Asenna Recipe Vault', installHelp:'Asenna kotinäytölle erillisenä sovelluksena ja Androidin jakovalikkoa varten.', installApp:'Asenna sovellus', installed:'Asennettu', shareHelp:'Asennuksen jälkeen ladattuja reseptikuvia, videoita ja PDF:iä voi jakaa Recipe Vaultiin Androidin tavallisesta jakovalikosta tuetuissa selaimissa.', reset:'NOLLAUS', clearData:'Tyhjennä sovelluksen tiedot', deleteAll:'Poista kaikki reseptit ja listat',
+    save:'Tallenna', reviewRecipe:'Tarkista resepti', editRecipe:'Muokkaa reseptiä', title:'Nimi', servings:'Annokset', servingsPlaceholder:'esim. 4', category:'Kategoria', categoryPlaceholder:'Päivällinen, leivonta…', tags:'Tagit', tagsPlaceholder:'Italialainen, kasvis, nopea…', ingredients:'Ainekset', ingredientsPlaceholder:'Yksi aines per rivi', steps:'Ohjeet', stepsPlaceholder:'Yksi vaihe per rivi', notes:'Muistiinpanot / lisätiedot', notesPlaceholder:'Vinkit, ajat, korvaavat ainekset, säilytys tai muu tieto, joka ei kuulu aineksiin tai ohjeisiin', sourceUrl:'Lähde-URL', deleteRecipe:'Poista resepti', addToShopping:'Lisää ostoslistalle', cancel:'Peruuta', delete:'Poista', source:'Lähde', optional:'valinnainen', noIngredients:'Aineksia ei tunnistettu.', noSteps:'Ohjeita ei tunnistettu.', originalVideo:'Alkuperäinen video', originalPdf:'Alkuperäinen PDF', openStoredPdf:'Avaa tallennettu PDF ↗', checkWhatIHave:'Tarkista mitä minulla on', alreadyAtHome:'On jo kotona', noIngredientsAvailable:'Ei aineksia.',
+    all:'Kaikki', match:'osuma', ingredientSingular:'aines', ingredientPlural:'ainesta', atHomeLower:'kotona', available:'käytettävissä', recipeSingular:'resepti', recipePlural:'reseptiä', ranked:'järjestetty', itemSingular:'tuote', itemPlural:'tuotetta', from:'Resepteistä', manualItems:'+ käsin lisätyt', manualLower:'käsin', movedToPantry:'siirretty kotivarastoon', recipeSaved:'Resepti tallennettu', recipeDeleted:'Resepti poistettu', backupExported:'Varmuuskopio viety', backupRestored:'Varmuuskopio palautettu',
+    textSource:'Teksti', webSource:'Verkko', photoSource:'Kuva', pdfSource:'PDF', videoSource:'Video', manualSource:'Käsin', sharedSource:'Jaettu', servingsUpper:'ANNOSTA', pasteFirst:'Liitä ensin resepti', parsingText:'Jäsennetään tekstiä…', parsedReview:'Resepti jäsennetty — tarkista ennen tallennusta', pasteLinkFirst:'Liitä ensin verkkolinkki', readingWebsite:'Luetaan verkkosivua…', websiteRead:'Verkkosivu luettu — tarkista poimittu resepti', linkFailed:'Linkkiä ei voitu lukea. Lataa/jaa tiedosto tai liitä reseptin teksti.', loadingPdf:'Ladataan PDF-lukijaa…', loadingOcr:'Ladataan tekstintunnistusta…', sharedFailed:'Jaettua kohdetta ei voitu tuoda', buildingBackup:'Luodaan varmuuskopiota…', readingBackup:'Luetaan varmuuskopiota…', restoreBackup:'Palautetaanko varmuuskopio?', restoreBackupText:'Tämä korvaa sovellukseen nyt tallennetut reseptit, kotivaraston ja ostoslistan.', restore:'Palauta', backupImportFailed:'Varmuuskopiota ei voitu tuoda', deleteRecipeQ:'Poistetaanko resepti?', deleteRecipeText:'ja sen tallennettu lähdemedia poistetaan tältä laitteelta.', deleteAllQ:'Poistetaanko kaikki sovelluksen tiedot?', deleteAllText:'Tämä poistaa pysyvästi kaikki tähän selaimeen tallennetut reseptit, lähdetiedostot, kotivaraston ja ostoslistan.', deleteEverything:'Poista kaikki', deletedAll:'Kaikki paikalliset tiedot poistettu', browserInstall:'Käytä selaimen valikkoa → Asenna sovellus / Lisää aloitusnäyttöön', appStartFailed:'Recipe Vault ei käynnistynyt', noVideoText:'Videon näyteruuduista ei löytynyt luettavaa reseptitekstiä. Lisää ainekset ja ohjeet käsin tarkistuksen aikana.', recipesSaved:'reseptiä tallennettu paikallisesti.', storageUsed:'Selaintallennus:', used:'käytössä', ofAbout:'noin', ingredientsAdded:'ainesta lisätty', importingFirst:'Tuodaan nyt ensimmäinen tiedosto'
+  },
+  it: {
+    privateLibrary:'RACCOLTA RICETTE PRIVATA', recipes:'Ricette', cook:'Cucina', import:'Importa', shopping:'Spesa', settings:'Impostazioni',
+    searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
+    whatCanIMake:'COSA POSSO CUCINARE?', matchWhatYouHave:'Abbina ciò che hai', matcherHelp:'Scrivi gli ingredienti liberamente. La ricerca comprende inglese, finlandese e italiano, oltre a plurali, termini di preparazione e sinonimi comuni.', availablePlaceholder:'es. pomodoro, pasta, parmigiano', add:'Aggiungi', includePantry:'Includi dispensa', includePantryHelp:'Usa anche gli ingredienti salvati a casa.', addFewIngredients:'Aggiungi alcuni ingredienti', matchEmptyText:'Le ricette saranno ordinate in base a quanti ingredienti necessari hai già.',
+    text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa Jina Reader quando un sito non può essere letto direttamente. L’URL viene inviato al servizio per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
+    shoppingList:'LISTA DELLA SPESA', addAnything:'Aggiungi qualsiasi cosa…', clearChecked:'Rimuovi selezionati', listEmpty:'La lista è vuota', listEmptyText:'Aggiungi ingredienti da una ricetta oppure altri articoli manualmente.', atHome:'A CASA', pantry:'Dispensa', pantryHelp:'Gli ingredienti salvati in dispensa vengono esclusi automaticamente quando aggiungi alla spesa quelli mancanti di una ricetta.', pantryPlaceholder:'Aggiungi ingrediente in dispensa…', nothingSaved:'Ancora nessun ingrediente salvato.',
+    languageEyebrow:'LINGUA', language:'Lingua', appLanguage:'Lingua dell’app', appLanguageHelp:'Cambia la lingua dell’interfaccia. L’analisi delle ricette comprende sempre inglese, finlandese e italiano.', appearance:'ASPETTO', theme:'Tema', colorTheme:'Tema colore', darkHelp:'La modalità scura usa uno sfondo nero puro.', system:'Sistema', dark:'Scuro', light:'Chiaro', data:'DATI', backupRestore:'Backup e ripristino', backupHelp:'I dati sono salvati localmente su questo dispositivo. Esporta un backup JSON prima di cancellare i dati del browser/app o cambiare telefono.', includeMedia:'Includi file multimediali', includeMediaHelp:'Include foto, PDF e video salvati; il backup può diventare grande.', exportJson:'Esporta JSON', importJson:'Importa JSON', app:'APP', installVault:'Installa Recipe Vault', installHelp:'Installalo nella schermata Home per usarlo come app e importare dal menu Condividi di Android.', installApp:'Installa app', installed:'Installata', shareHelp:'Dopo l’installazione, foto, video e PDF di ricette scaricati possono essere condivisi con Recipe Vault dal normale menu Condividi di Android nei browser supportati.', reset:'RESET', clearData:'Cancella dati app', deleteAll:'Elimina tutte le ricette e le liste',
+    save:'Salva', reviewRecipe:'Controlla ricetta', editRecipe:'Modifica ricetta', title:'Titolo', servings:'Porzioni', servingsPlaceholder:'es. 4', category:'Categoria', categoryPlaceholder:'Cena, dolci…', tags:'Tag', tagsPlaceholder:'Italiano, vegetariano, veloce…', ingredients:'Ingredienti', ingredientsPlaceholder:'Un ingrediente per riga', steps:'Procedimento', stepsPlaceholder:'Un passaggio per riga', notes:'Note / informazioni extra', notesPlaceholder:'Consigli, tempi, sostituzioni, conservazione o altre informazioni non adatte a ingredienti o procedimento', sourceUrl:'URL fonte', deleteRecipe:'Elimina ricetta', addToShopping:'Aggiungi alla spesa', cancel:'Annulla', delete:'Elimina', source:'Fonte', optional:'facoltativo', noIngredients:'Nessun ingrediente riconosciuto.', noSteps:'Nessun passaggio riconosciuto.', originalVideo:'Video originale', originalPdf:'PDF originale', openStoredPdf:'Apri PDF salvato ↗', checkWhatIHave:'Controlla cosa ho', alreadyAtHome:'Già a casa', noIngredientsAvailable:'Nessun ingrediente disponibile.',
+    all:'Tutti', match:'corrispondenza', ingredientSingular:'ingrediente', ingredientPlural:'ingredienti', atHomeLower:'a casa', available:'disponibili', recipeSingular:'ricetta', recipePlural:'ricette', ranked:'ordinate', itemSingular:'articolo', itemPlural:'articoli', from:'Da', manualItems:'+ articoli manuali', manualLower:'manuale', movedToPantry:'spostato in dispensa', recipeSaved:'Ricetta salvata', recipeDeleted:'Ricetta eliminata', backupExported:'Backup esportato', backupRestored:'Backup ripristinato',
+    textSource:'Testo', webSource:'Web', photoSource:'Foto', pdfSource:'PDF', videoSource:'Video', manualSource:'Manuale', sharedSource:'Condiviso', servingsUpper:'PORZIONI', pasteFirst:'Incolla prima una ricetta', parsingText:'Analisi del testo…', parsedReview:'Ricetta analizzata — controlla prima di salvare', pasteLinkFirst:'Incolla prima un link', readingWebsite:'Lettura del sito…', websiteRead:'Sito letto — controlla la ricetta estratta', linkFailed:'Impossibile leggere il link. Scarica/condividi il file oppure incolla il testo della ricetta.', loadingPdf:'Caricamento lettore PDF…', loadingOcr:'Caricamento OCR…', sharedFailed:'Impossibile importare l’elemento condiviso', buildingBackup:'Creazione backup…', readingBackup:'Lettura backup…', restoreBackup:'Ripristinare il backup?', restoreBackupText:'Questo sostituirà le ricette, la dispensa e la lista della spesa attualmente salvate nell’app.', restore:'Ripristina', backupImportFailed:'Impossibile importare il backup', deleteRecipeQ:'Eliminare la ricetta?', deleteRecipeText:'e i relativi file sorgente salvati verranno eliminati da questo dispositivo.', deleteAllQ:'Eliminare tutti i dati dell’app?', deleteAllText:'Questo elimina definitivamente tutte le ricette, i file sorgente, la dispensa e la lista della spesa salvati in questo browser.', deleteEverything:'Elimina tutto', deletedAll:'Tutti i dati locali sono stati eliminati', browserInstall:'Usa il menu del browser → Installa app / Aggiungi alla schermata Home', appStartFailed:'Recipe Vault non si è avviata', noVideoText:'Non è stato rilevato testo di ricetta leggibile nei fotogrammi campionati. Aggiungi ingredienti e procedimento manualmente durante il controllo.', recipesSaved:'ricette salvate localmente.', storageUsed:'Archiviazione browser:', used:'usati', ofAbout:'su circa', ingredientsAdded:'ingredienti aggiunti', importingFirst:'Importazione del primo file'
+  }
+};
+function t(key, vars={}) {
+  const lang=state?.language || 'en';
+  let out=(I18N[lang]&&I18N[lang][key]) || I18N.en[key] || key;
+  for(const [k,v] of Object.entries(vars)) out=out.replaceAll(`{${k}}`,String(v));
+  return out;
+}
+function applyLanguage() {
+  const lang=state.language || 'en';
+  document.documentElement.lang=lang;
+  $$('[data-i18n]').forEach(el=>{ const key=el.dataset.i18n; if(I18N[lang]?.[key]||I18N.en[key]) el.textContent=t(key); });
+  $$('[data-i18n-placeholder]').forEach(el=>{ el.placeholder=t(el.dataset.i18nPlaceholder); });
+  if($('#languageSelect')) $('#languageSelect').value=lang;
+  const current=$('.page.active')?.dataset.page || 'recipes';
+  if($('#headerTitle')) $('#headerTitle').textContent=titleForPage(current);
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains('recipes')) d.createObjectStore('recipes', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('media')) d.createObjectStore('media', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('state')) d.createObjectStore('state', { keyPath: 'key' });
+      if (!d.objectStoreNames.contains('shared')) d.createObjectStore('shared', { keyPath: 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbPut(store, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(value);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function idbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function idbClear(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).clear();
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadAll() {
+  recipes = (await idbGetAll('recipes')).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const saved = await idbGet('state', 'app');
+  if (saved?.value) state = { ...state, ...saved.value };
+  applyTheme();
+  applyLanguage();
+  renderAll();
+}
+async function saveState() {
+  await idbPut('state', { key: 'app', value: state });
+}
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+}
+function fmtBytes(bytes = 0) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B','KB','MB','GB'];
+  let i=0, n=bytes;
+  while (n >= 1024 && i < units.length-1) { n/=1024; i++; }
+  return `${n.toFixed(n >= 10 || i===0 ? 0 : 1)} ${units[i]}`;
+}
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+function setStatus(message, busy = true) {
+  const el = $('#importStatus');
+  if (!message) { el.classList.add('hidden'); el.textContent=''; return; }
+  el.classList.remove('hidden');
+  el.textContent = busy ? `${state.language==='fi'?'Työstetään':state.language==='it'?'Elaborazione':'Working'} · ${message}` : message;
+}
+function titleForPage(page) {
+  return ({recipes:t('recipes'),cook:t('cook'),import:t('import'),shopping:t('shopping'),settings:t('settings')})[page] || 'Recipe Vault';
+}
+function go(page) {
+  $$('.page').forEach(p => p.classList.toggle('active', p.dataset.page === page));
+  $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === page));
+  $('#headerTitle').textContent = titleForPage(page);
+  location.hash = page === 'recipes' ? '' : page;
+  window.scrollTo({top:0, behavior:'instant'});
+  if (page === 'cook') renderMatches();
+  if (page === 'shopping') renderShopping();
+  if (page === 'settings') { renderPantry(); renderStorageInfo(); }
+}
+
+function normalizeText(s='') {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+}
+function singularize(word) {
+  if (word.length < 4) return word;
+  if (word.endsWith('ies')) return word.slice(0,-3)+'y';
+  if (word.endsWith('oes')) return word.slice(0,-2);
+  if (word.endsWith('ses') || word.endsWith('xes') || word.endsWith('ches') || word.endsWith('shes')) return word.slice(0,-2);
+  if (word.endsWith('s') && !word.endsWith('ss')) return word.slice(0,-1);
+  return word;
+}
+function canonicalIngredient(input='') {
+  let s = normalizeText(input);
+  s = s.replace(/^\d+[\d\s./,-]*\s*/, '');
+  // remove common unit words wherever they occur near the start
+  const unitPattern = new RegExp(`^(${UNITS.map(u=>normalizeText(u).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).filter(Boolean).join('|')})\\b\\s*`, 'i');
+  s = s.replace(unitPattern, '');
+  let words = s.split(/\s+/).filter(Boolean).filter(w => !PREP_WORDS.has(w));
+  s = words.join(' ');
+  for (const [variants, canonical] of SYNONYMS) {
+    if (variants.some(v => { const n=normalizeText(v); return s===n || s.includes(n) || n.includes(s); })) return canonical;
+  }
+  return s.split(' ').map(singularize).join(' ').trim();
+}
+function levenshtein(a,b) {
+  if (a===b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({length:b.length+1},(_,i)=>i);
+  for (let i=1;i<=a.length;i++) {
+    let cur=[i];
+    for (let j=1;j<=b.length;j++) cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    for (let j=0;j<cur.length;j++) prev[j]=cur[j];
+  }
+  return prev[b.length];
+}
+function ingredientSimilarity(a,b) {
+  const x = canonicalIngredient(a), y = canonicalIngredient(b);
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  if ((x.includes(y) || y.includes(x)) && Math.min(x.length,y.length) >= 4) return .91;
+  const xt = new Set(x.split(' ')), yt = new Set(y.split(' '));
+  const common = [...xt].filter(t => yt.has(t)).length;
+  const union = new Set([...xt,...yt]).size;
+  const tokenScore = union ? common/union : 0;
+  const editScore = 1 - levenshtein(x,y)/Math.max(x.length,y.length);
+  return Math.max(tokenScore, editScore * .92);
+}
+function fuzzyHas(available, ingredient) {
+  return available.some(a => ingredientSimilarity(a, ingredient.name || ingredient) >= .67);
+}
+
+function parseNumber(raw='') {
+  raw = raw.trim();
+  if (!raw) return null;
+  const mixed = raw.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) return Number(mixed[1]) + Number(mixed[2])/Number(mixed[3]);
+  const frac = raw.match(/^(\d+)\/(\d+)$/);
+  if (frac) return Number(frac[1])/Number(frac[2]);
+  const n = Number(raw.replace(',','.'));
+  return Number.isFinite(n) ? n : null;
+}
+function cleanQty(raw='') {
+  return raw.replace(/½/g,' 1/2').replace(/¼/g,' 1/4').replace(/¾/g,' 3/4').replace(/⅓/g,' 1/3').replace(/⅔/g,' 2/3').replace(/⅛/g,' 1/8').trim();
+}
+function canonicalUnit(raw='') {
+  const n=normalizeText(String(raw).replace(/\.$/,''));
+  return UNIT_ALIASES[n] || '';
+}
+function parseIngredientLine(line) {
+  let raw = String(line || '').replace(/^[-•*–—]\s*/, '').trim();
+  if (!raw) return null;
+  raw = cleanQty(raw);
+  // Quantities support integers, decimal comma/dot, fractions, mixed fractions and ranges.
+  const m = raw.match(/^((?:\d+\s+\d+\/\d+)|(?:\d+\/\d+)|(?:\d+(?:[.,]\d+)?)(?:\s*[-–—]\s*\d+(?:[.,]\d+)?)?)?\s*([\p{L}.]+)?\s*(.*)$/u);
+  let qtyText = (m?.[1] || '').trim();
+  const maybeUnit=(m?.[2] || '').trim();
+  const unitCanonical=canonicalUnit(maybeUnit);
+  let unit = unitCanonical ? maybeUnit.replace(/\.$/,'').toLowerCase() : '';
+  let name = (m?.[3] || '').trim();
+  if (maybeUnit && !unitCanonical) name = `${maybeUnit} ${name}`.trim();
+  if (!name) name = raw.replace(new RegExp(`^${qtyText.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\s*`),'').trim() || raw;
+  const range = qtyText.match(/^(\d+(?:[.,]\d+)?)\s*[-–—]\s*(\d+(?:[.,]\d+)?)$/);
+  let qty = range ? null : parseNumber(qtyText);
+  return { raw, qty, qtyText, unit, unitCanonical, name, optional: /\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw) };
+}
+function ingredientToLine(i) {
+  if (!i) return '';
+  const qty = i.qtyText || (Number.isFinite(i.qty) ? String(i.qty) : '');
+  return [qty, i.unit, i.name].filter(Boolean).join(' ').trim();
+}
+function formatQty(i) {
+  const q = i.qtyText || (Number.isFinite(i.qty) ? String(i.qty) : '');
+  return [q, i.unit].filter(Boolean).join(' ') || '—';
+}
+
+function stripMarkdown(s='') {
+  return s.replace(/!\[[^\]]*\]\([^)]*\)/g,'')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+    .replace(/^#{1,6}\s+/gm,'')
+    .replace(/[*_`>]/g,'')
+    .replace(/\r/g,'');
+}
+function extractFirstImageUrl(text='') {
+  const m = text.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)[^)]*\)/i);
+  return m?.[1] || '';
+}
+function inferCategory(text='') {
+  const n = normalizeText(text);
+  for (const [label, words] of CATEGORY_RULES) if (words.some(w => n.includes(normalizeText(w)))) return label;
+  return 'Recipe';
+}
+function inferTags(text='') {
+  const n = normalizeText(text);
+  return TAG_RULES.filter(([,words]) => words.some(w => n.includes(normalizeText(w)))).map(([label]) => label);
+}
+function headingType(line='') {
+  let n=normalizeText(line.replace(/[:：]\s*$/,''));
+  if (!n) return '';
+  for (const [type,set] of Object.entries(HEADING_SETS)) {
+    if (set.has(n)) return type;
+    for (const h of set) {
+      if (n.startsWith(h+' ')) {
+        const rest=n.slice(h.length+1);
+        if (type==='steps' && /\b(time|aika|tempo|min|hour|ore)\b/.test(rest)) continue;
+        if (/^(?:(?:for|per)\s+)?\d|^(?:serves?|servings?|annosta|annos|porzioni?|persone)\b/.test(rest)) return type;
+      }
     }
   }
-  let state = loadState();
+  return '';
+}
+function looksLikeIngredient(line='') {
+  const s=line.trim();
+  if (!s || s.length>180 || headingType(s)) return false;
+  if (/^\d+[.)]\s+/.test(s)) return false;
+  if (/^[-•*–—]\s+/.test(line)) return true;
+  if (/^(\d|½|¼|¾|⅓|⅔|⅛)/.test(s) && s.split(/\s+/).length >= 2) return true;
+  const n=normalizeText(s);
+  return UNITS.some(u => { const nu=normalizeText(u); return nu && new RegExp(`\\b${nu.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n); });
+}
+function looksLikeStep(line='') {
+  const s=line.trim();
+  if (!s || headingType(s)) return false;
+  if (/^\d+[.)]\s+/.test(s)) return true;
+  return /^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda)\b/i.test(s);
+}
+function cleanStepLine(l='') {
+  return l.replace(/^\s*(?:step|vaihe|passaggio)?\s*\d+[.):\-]?\s*/i,'').replace(/^[-•*–—]\s*/, '').trim();
+}
+function parseRecipeText(rawText, source = {}) {
+  const imageUrl = source.imageUrl || extractFirstImageUrl(rawText);
+  const text = stripMarkdown(rawText);
+  let lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  lines = lines.filter(l => !BOILERPLATE_RE.test(l));
+  const types=lines.map(headingType);
+  const firstOf=type=>types.findIndex(x=>x===type);
+  const ingIdx=firstOf('ingredients');
+  const stepIdx=firstOf('steps');
+  const noteIdx=firstOf('notes');
+  const firstSection=[ingIdx,stepIdx,noteIdx].filter(i=>i>=0).sort((a,b)=>a-b)[0] ?? -1;
 
-  function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-
-  function esc(v="") {
-    return String(v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-  }
-
-
-  function noteKey(type, id) {
-    return `${type}:${id}`;
-  }
-
-  function getNote(type, id) {
-    return String(state.notes?.[noteKey(type,id)] || "");
-  }
-
-  function saveNote(type, id, value) {
-    if (!state.notes || typeof state.notes !== "object" || Array.isArray(state.notes)) {
-      state.notes = {};
+  let title = source.title || '';
+  let titleIdx=-1;
+  if (!title) {
+    const limit=firstSection>0?Math.min(firstSection,10):Math.min(lines.length,10);
+    for(let i=0;i<limit;i++){
+      const l=lines[i];
+      if(l.length>=3 && l.length<120 && !looksLikeIngredient(l) && !headingType(l) && !/^(recipe|resepti|ricetta)$/i.test(l) && !EXTRA_INFO_RE.test(l)) { title=l; titleIdx=i; break; }
     }
-    const key = noteKey(type,id);
-    const text = String(value || "");
-    if (text.trim()) state.notes[key] = text;
-    else delete state.notes[key];
-    saveState();
-    if (state.view === "gallery") renderGalleryNotes();
-  }
+    if(!title){title=lines[0]||'Untitled recipe';titleIdx=0;}
+  } else titleIdx=lines.findIndex(l=>l===title);
 
-  function noteSectionHtml(type, id) {
-    return `<section class="notes-section">
-      <div class="notes-section-head">
-        <h3>Notes</h3>
-        <span id="noteSaveStatus" class="note-save-status">Saved automatically</span>
-      </div>
-      <textarea
-        id="modalNote"
-        class="presentation-note"
-        rows="5"
-        placeholder="Write notes about this presentation…"
-        spellcheck="true"
-        data-note-type="${esc(type)}"
-        data-note-id="${esc(id)}"
-      >${esc(getNote(type,id))}</textarea>
-    </section>`;
-  }
-
-
-  function openShareQr() {
-    const viewer = $("#shareQrViewer");
-    viewer.hidden = false;
-    viewer.setAttribute("aria-hidden", "false");
-    document.documentElement.classList.add("share-qr-open");
-    document.body.classList.add("share-qr-open");
-  }
-
-  function closeShareQr() {
-    const viewer = $("#shareQrViewer");
-    viewer.hidden = true;
-    viewer.setAttribute("aria-hidden", "true");
-    document.documentElement.classList.remove("share-qr-open");
-    document.body.classList.remove("share-qr-open");
-  }
-
-  function openPhotoDb() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(PHOTO_DB, 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(PHOTO_STORE)) {
-          const store = db.createObjectStore(PHOTO_STORE, {keyPath:"id", autoIncrement:true});
-          store.createIndex("ownerKey", "ownerKey", {unique:false});
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  function photoOwnerKey(type, id) {
-    return `${type}:${id}`;
-  }
-
-  async function getPhotos(type, id) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readonly");
-      const req = tx.objectStore(PHOTO_STORE).index("ownerKey").getAll(photoOwnerKey(type,id));
-      req.onsuccess = () => resolve((req.result || []).sort((a,b)=>(a.addedAt||0)-(b.addedAt||0)));
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => db.close();
-    });
-  }
-
-  async function getAllPhotos() {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readonly");
-      const req = tx.objectStore(PHOTO_STORE).getAll();
-      req.onsuccess = () => resolve((req.result || []).sort((x,y)=>(x.addedAt||0)-(y.addedAt||0)));
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => db.close();
-    });
-  }
-
-  async function storePhoto(type, id, file, metadata={}) {
-    const blob = await prepareImageBlob(file);
-    const thumbnailBlob = await prepareThumbnailBlob(blob);
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readwrite");
-      const req = tx.objectStore(PHOTO_STORE).add({
-        ownerKey: photoOwnerKey(type,id),
-        ownerType: type,
-        ownerId: id,
-        name: file.name || "photo.jpg",
-        originalType: file.type || blob.type || "image/jpeg",
-        originalLastModified: file.lastModified || null,
-        captureDate: metadata.captureDate || null,
-        captureTime: metadata.captureTime || null,
-        timestampSource: metadata.timestampSource || null,
-        addedAt: Date.now(),
-        thumbnailBlob,
-        blob
-      });
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => db.close();
-    });
-  }
-
-  async function updatePhotoTitle(photoId, title) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readwrite");
-      const store = tx.objectStore(PHOTO_STORE);
-      const req = store.get(Number(photoId));
-      req.onsuccess = () => {
-        const photo = req.result;
-        if (!photo) return;
-        const clean = String(title || "").trim();
-        if (clean) photo.customTitle = clean;
-        else delete photo.customTitle;
-        store.put(photo);
-      };
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-    });
-  }
-
-  async function updatePhotoNote(photoId, note) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readwrite");
-      const store = tx.objectStore(PHOTO_STORE);
-      const req = store.get(Number(photoId));
-      req.onsuccess = () => {
-        const photo = req.result;
-        if (!photo) return;
-        const clean = String(note || "").trim();
-        if (clean) photo.customNote = clean;
-        else delete photo.customNote;
-        store.put(photo);
-      };
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-    });
-  }
-
-  async function deletePhoto(photoId) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readwrite");
-      tx.objectStore(PHOTO_STORE).delete(Number(photoId));
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-    });
-  }
-
-  async function getPhoto(photoId) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readonly");
-      const req = tx.objectStore(PHOTO_STORE).get(Number(photoId));
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => db.close();
-    });
-  }
-
-  async function prepareImageBlob(file) {
-    // Keep small images as-is; compress larger photos to save browser storage.
-    if (file.size <= 1200000) return file;
-    try {
-      const bitmap = await createImageBitmap(file);
-      const maxSide = 1800;
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-      const width = Math.max(1, Math.round(bitmap.width * scale));
-      const height = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(bitmap, 0, 0, width, height);
-      bitmap.close?.();
-      return await new Promise((resolve, reject) => canvas.toBlob(
-        blob => blob ? resolve(blob) : reject(new Error("Image conversion failed")),
-        "image/jpeg", 0.82
-      ));
-    } catch {
-      return file;
-    }
-  }
-
-  async function prepareThumbnailBlob(blob) {
-    try {
-      const bitmap = await createImageBitmap(blob);
-      const maxSide = 360;
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-      const width = Math.max(1, Math.round(bitmap.width * scale));
-      const height = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(bitmap, 0, 0, width, height);
-      bitmap.close?.();
-      return await new Promise((resolve, reject) => canvas.toBlob(
-        out => out ? resolve(out) : reject(new Error("Thumbnail conversion failed")),
-        "image/jpeg", 0.72
-      ));
-    } catch {
-      return blob;
-    }
-  }
-
-  async function persistPhotoThumbnail(photoId, thumbnailBlob) {
-    const db = await openPhotoDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(PHOTO_STORE, "readwrite");
-      const store = tx.objectStore(PHOTO_STORE);
-      const req = store.get(Number(photoId));
-      req.onsuccess = () => {
-        const photo = req.result;
-        if (photo && !photo.thumbnailBlob) {
-          photo.thumbnailBlob = thumbnailBlob;
-          store.put(photo);
-        }
-      };
-      req.onerror = () => reject(req.error);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); reject(tx.error); };
-    });
-  }
-
-  async function ensurePhotoThumbnail(photo) {
-    if (photo.thumbnailBlob) return photo.thumbnailBlob;
-    const thumbnailBlob = await prepareThumbnailBlob(photo.blob);
-    photo.thumbnailBlob = thumbnailBlob;
-    try { await persistPhotoThumbnail(photo.id, thumbnailBlob); } catch {}
-    return thumbnailBlob;
-  }
-
-  function readAscii(view, offset, length) {
-    if (offset < 0 || offset + length > view.byteLength) return "";
-    let out = "";
-    for (let i=0; i<length; i++) {
-      const code = view.getUint8(offset+i);
-      if (!code) break;
-      out += String.fromCharCode(code);
+  function sectionEntries(startIdx, type, max=50) {
+    if(startIdx<0) return [];
+    const out=[];
+    for(let i=startIdx+1;i<lines.length && out.length<max;i++){
+      const ht=types[i];
+      if(ht) break;
+      if(BOILERPLATE_RE.test(lines[i])) break;
+      out.push({i,text:lines[i]});
     }
     return out;
   }
+  let ingredientEntries=sectionEntries(ingIdx,'ingredients',50);
+  let stepEntries=sectionEntries(stepIdx,'steps',45);
+  let noteEntries=sectionEntries(noteIdx,'notes',30);
 
-  function parseExifWallClock(raw) {
-    const m = String(raw || "").match(/^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
-    if (!m) return null;
-    return {date:`${m[1]}-${m[2]}-${m[3]}`, time:`${m[4]}:${m[5]}`, seconds:Number(m[6]||0)};
+  if (!ingredientEntries.length) ingredientEntries=lines.map((text,i)=>({i,text})).filter(x=>looksLikeIngredient(x.text)).slice(0,45);
+  if (!stepEntries.length) stepEntries=lines.map((text,i)=>({i,text})).filter(x=>looksLikeStep(x.text) && !ingredientEntries.some(y=>y.i===x.i)).slice(0,40);
+
+  // In explicit sections, remove obvious subsection headings but keep quantity-free ingredients such as “salt and pepper”.
+  ingredientEntries=ingredientEntries.filter(x=>!/^((for|to|per)\s+)?(sauce|dressing|topping|filling|marinade|serve|serving|kastike|täyte|tayte|kuorrute|marinadi|tarjoiluun|salsa|ripieno|condimento|marinatura|guarnizione)\s*:?$/i.test(x.text));
+  const ingredientLines=[...new Set(ingredientEntries.map(x=>x.text))];
+  const stepLines=[...new Set(stepEntries.map(x=>cleanStepLine(x.text)).filter(Boolean))];
+  const ingredients=ingredientLines.map(parseIngredientLine).filter(Boolean);
+
+  const used=new Set([titleIdx,ingIdx,stepIdx,noteIdx].filter(i=>i>=0));
+  ingredientEntries.forEach(x=>used.add(x.i)); stepEntries.forEach(x=>used.add(x.i)); noteEntries.forEach(x=>used.add(x.i));
+  const explicitNotes=noteEntries.map(x=>x.text);
+  const contentStart=Math.max(0,titleIdx+1);
+  let stopIdx=types.findIndex((x,i)=>x==='stop' && i>Math.max(ingIdx,stepIdx,noteIdx,titleIdx));
+  if(stopIdx<0) stopIdx=lines.length;
+  const extras=[];
+  for(let i=contentStart;i<stopIdx;i++){
+    const l=lines[i];
+    if(used.has(i)||headingType(l)||BOILERPLATE_RE.test(l)||/^https?:\/\//i.test(l)||l.length>280) continue;
+    const normalized=normalizeText(l);
+    if(!normalized || /^(ingredients|instructions|directions|ainekset|ohjeet|ingredienti|istruzioni)$/.test(normalized)) continue;
+    // Keep metadata and genuinely useful unmatched recipe text; skip obvious social/site chrome.
+    if(EXTRA_INFO_RE.test(l) || (firstSection>=0 && i<firstSection) || /\b(°c|°f|min|mins|minutes|minute|minuutt|tunt|hour|ore|minuti)\b/i.test(l)) extras.push(l);
   }
-
-  async function readExifCaptureTime(file) {
-    if (!/jpe?g/i.test(file.type || file.name || "")) return null;
-    try {
-      const buffer = await file.slice(0, 1024 * 1024).arrayBuffer();
-      const view = new DataView(buffer);
-      if (view.byteLength < 4 || view.getUint16(0, false) !== 0xFFD8) return null;
-      let pos = 2;
-      while (pos + 4 <= view.byteLength) {
-        if (view.getUint8(pos) !== 0xFF) { pos++; continue; }
-        const marker = view.getUint8(pos + 1);
-        pos += 2;
-        if (marker === 0xDA || marker === 0xD9) break;
-        if (pos + 2 > view.byteLength) break;
-        const length = view.getUint16(pos, false);
-        if (length < 2 || pos + length > view.byteLength) break;
-        if (marker === 0xE1) {
-          const payload = pos + 2;
-          if (readAscii(view, payload, 4) === "Exif") {
-            const tiff = payload + 6;
-            if (tiff + 8 > view.byteLength) return null;
-            const order = view.getUint16(tiff, false);
-            const little = order === 0x4949;
-            if (!little && order !== 0x4D4D) return null;
-            const get16 = off => view.getUint16(off, little);
-            const get32 = off => view.getUint32(off, little);
-            const valueString = entry => {
-              const type = get16(entry + 2);
-              const count = get32(entry + 4);
-              if (type !== 2 || !count) return "";
-              const valuePos = count <= 4 ? entry + 8 : tiff + get32(entry + 8);
-              return readAscii(view, valuePos, Math.min(count, 64));
-            };
-            const findTag = (ifdPos, wanted) => {
-              if (ifdPos < 0 || ifdPos + 2 > view.byteLength) return null;
-              const count = get16(ifdPos);
-              for (let i=0; i<count; i++) {
-                const entry = ifdPos + 2 + i*12;
-                if (entry + 12 > view.byteLength) break;
-                if (get16(entry) === wanted) return entry;
-              }
-              return null;
-            };
-            const ifd0 = tiff + get32(tiff + 4);
-            const exifPtrEntry = findTag(ifd0, 0x8769);
-            if (exifPtrEntry) {
-              const exifIfd = tiff + get32(exifPtrEntry + 8);
-              for (const tag of [0x9003, 0x9004]) {
-                const entry = findTag(exifIfd, tag);
-                const parsed = entry ? parseExifWallClock(valueString(entry)) : null;
-                if (parsed) return parsed;
-              }
-            }
-            const dateEntry = findTag(ifd0, 0x0132);
-            const parsed = dateEntry ? parseExifWallClock(valueString(dateEntry)) : null;
-            if (parsed) return parsed;
-          }
-        }
-        pos += length;
-      }
-    } catch (err) {
-      console.warn("Could not read EXIF timestamp", err);
-    }
-    return null;
-  }
-
-  function berlinPartsFromDate(date) {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Berlin",
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-    }).formatToParts(date);
-    const get = t => parts.find(p => p.type === t)?.value || "";
-    return {date:`${get("year")}-${get("month")}-${get("day")}`, time:`${get("hour")}:${get("minute")}`};
-  }
-
-  async function captureInfoForFile(file) {
-    const exif = await readExifCaptureTime(file);
-    if (exif) return {...exif, source:"camera metadata"};
-    if (file.lastModified) {
-      const p = berlinPartsFromDate(new Date(file.lastModified));
-      return {...p, seconds:0, source:"file date"};
-    }
-    return {date:null, time:null, seconds:0, source:"unknown"};
-  }
-
-  function minuteDistanceToEvent(minute, event) {
-    const start = timeValue(event.start);
-    const end = timeValue(event.end);
-    if (minute < start) return start - minute;
-    if (minute > end) return minute - end;
-    return 0;
-  }
-
-  function assignmentKey(type, id) {
-    return `${type}:${id}`;
-  }
-
-  function assignmentFromKey(key) {
-    const [type, ...rest] = String(key || "").split(":");
-    return {type, id:rest.join(":")};
-  }
-
-  function assignmentLabel(type, id) {
-    if (type === "poster") {
-      const p = posterById.get(id);
-      return p ? `Poster #${p.number} · ${p.title}` : "Poster";
-    }
-    const e = byId.get(id);
-    if (!e) return "Programme item";
-    const session = e.session ? `${e.session} · ` : "";
-    const room = e.room ? ` · ${e.room[0].toUpperCase()+e.room.slice(1)}` : "";
-    return `${e.start} · ${session}${e.title}${room}`;
-  }
-
-  function photoSuggestions(capture) {
-    if (!capture?.date || !capture?.time) return [];
-    const minute = timeValue(capture.time);
-    const dateEvents = DATA.schedule.filter(e => e.date === capture.date && !["break","meal"].includes(e.kind));
-    const posterSession = dateEvents.find(e => e.kind === "poster-session" && minute >= timeValue(e.start)-5 && minute <= timeValue(e.end)+5);
-    const ranked = [];
-
-    if (posterSession) {
-      for (const id of state.posterFavorites) {
-        const p = posterById.get(id);
-        if (p) ranked.push({type:"poster", id:p.id, score:1600, reason:"Starred poster during poster session"});
-      }
-      ranked.push({type:"event", id:posterSession.id, score:1000, reason:"Poster session at this time"});
-    }
-
-    for (const e of dateEvents) {
-      if (e.kind === "poster-session") continue;
-      const distance = minuteDistanceToEvent(minute, e);
-      if (distance > 20) continue;
-      const inside = distance === 0;
-      let score = inside ? 1000 : 700 - distance * 18;
-      if (state.favorites.includes(e.id)) score += 350;
-      if (["talk","plenary","special"].includes(e.kind)) score += 40;
-      ranked.push({
-        type:"event", id:e.id, score,
-        reason: state.favorites.includes(e.id)
-          ? (inside ? "Starred item happening at this time" : "Starred item near this time")
-          : (inside ? "Happening at this time" : `${distance} min from capture time`)
-      });
-    }
-
-    const seen = new Set();
-    return ranked
-      .sort((a,b)=>b.score-a.score)
-      .filter(x => {
-        const key = assignmentKey(x.type,x.id);
-        if (seen.has(key)) return false;
-        seen.add(key); return true;
-      })
-      .slice(0,8);
-  }
-
-  function importSelectOptions(item) {
-    const suggestedKeys = new Set(item.suggestions.map(x=>assignmentKey(x.type,x.id)));
-    let html = `<option value="unclassified:unclassified" ${item.selectedKey==="unclassified:unclassified"?"selected":""}>Unclassified</option>`;
-    html += `<option value="">Do not import this photo</option>`;
-    if (item.suggestions.length) {
-      html += `<optgroup label="Suggested">` + item.suggestions.map(x => {
-        const key = assignmentKey(x.type,x.id);
-        return `<option value="${esc(key)}" ${key===item.selectedKey?"selected":""}>${esc(assignmentLabel(x.type,x.id))}</option>`;
-      }).join("") + `</optgroup>`;
-    }
-    if (item.capture.date) {
-      const others = DATA.schedule
-        .filter(e => e.date===item.capture.date && !["break","meal","poster-session"].includes(e.kind))
-        .filter(e => !suggestedKeys.has(assignmentKey("event",e.id)))
-        .sort((a,b)=>timeValue(a.start)-timeValue(b.start) || a.track-b.track);
-      if (others.length) {
-        html += `<optgroup label="Other programme items that day">` + others.map(e =>
-          `<option value="event:${esc(e.id)}">${esc(assignmentLabel("event",e.id))}</option>`
-        ).join("") + `</optgroup>`;
-      }
-      if (item.capture.date === "2026-10-06" && state.posterFavorites.length) {
-        const posters = state.posterFavorites.map(id=>posterById.get(id)).filter(Boolean)
-          .filter(p => !suggestedKeys.has(assignmentKey("poster",p.id)));
-        if (posters.length) {
-          html += `<optgroup label="Other starred posters">` + posters.map(p =>
-            `<option value="poster:${esc(p.id)}">${esc(assignmentLabel("poster",p.id))}</option>`
-          ).join("") + `</optgroup>`;
-        }
-      }
-    }
-    return html;
-  }
-
-  function clearPendingPhotoImports() {
-    for (const item of pendingPhotoImports) {
-      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-    }
-    pendingPhotoImports = [];
-    const list = $("#photoImportList");
-    if (list) list.innerHTML = "";
-  }
-
-  function closePhotoImportDialog() {
-    const dlg = $("#photoImportDialog");
-    if (dlg?.open) dlg.close();
-    clearPendingPhotoImports();
-  }
-
-  function renderPhotoImportReview() {
-    const list = $("#photoImportList");
-    if (!list) return;
-    if (!pendingPhotoImports.length) {
-      list.innerHTML = `<div class="photo-empty">No image files selected.</div>`;
-      return;
-    }
-    list.innerHTML = pendingPhotoImports.map((item,index) => {
-      const stamp = item.capture.date && item.capture.time
-        ? `${item.capture.date} · ${item.capture.time}`
-        : "No usable timestamp";
-      const top = item.suggestions[0];
-      const reason = top ? top.reason : "No session match — will import as Unclassified";
-      return `<article class="photo-import-item" data-import-index="${index}">
-        <img src="${item.previewUrl}" alt="Selected conference photo">
-        <div class="photo-import-copy">
-          <strong>${esc(item.file.name || `Photo ${index+1}`)}</strong>
-          <div class="photo-import-time">${esc(stamp)} · ${esc(item.capture.source)}</div>
-          <div class="photo-import-reason">${esc(reason)}</div>
-          <label>
-            <span>Assign to</span>
-            <select class="photo-assignment-select" data-import-select="${index}">${importSelectOptions(item)}</select>
-          </label>
-        </div>
-      </article>`;
-    }).join("");
-  }
-
-  async function beginSmartPhotoImport(files) {
-    clearPendingPhotoImports();
-    const images = [...(files || [])].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || ""));
-    if (!images.length) return toast("Choose image files");
-    toast(images.length === 1 ? "Reading photo time…" : `Reading ${images.length} photo times…`);
-    for (const file of images) {
-      const capture = await captureInfoForFile(file);
-      const suggestions = photoSuggestions(capture);
-      pendingPhotoImports.push({
-        file,
-        capture,
-        suggestions,
-        selectedKey: suggestions[0]
-          ? assignmentKey(suggestions[0].type,suggestions[0].id)
-          : assignmentKey("unclassified","unclassified"),
-        previewUrl: URL.createObjectURL(file)
-      });
-    }
-    renderPhotoImportReview();
-    $("#photoImportDialog").showModal();
-  }
-
-  async function saveSmartPhotoAssignments() {
-    if (!pendingPhotoImports.length) return;
-    const saveItems = pendingPhotoImports.map((item,index) => {
-      const select = $(`[data-import-select="${index}"]`);
-      return {...item, selectedKey:select?.value || ""};
-    }).filter(x=>x.selectedKey);
-    if (!saveItems.length) return toast("Choose at least one assignment");
-    $("#photoImportSave").disabled = true;
-    toast(saveItems.length === 1 ? "Saving photo…" : `Saving ${saveItems.length} photos…`);
-    try {
-      for (const item of saveItems) {
-        const target = assignmentFromKey(item.selectedKey);
-        await storePhoto(target.type, target.id, item.file, {
-          captureDate:item.capture.date,
-          captureTime:item.capture.time,
-          timestampSource:item.capture.source
-        });
-      }
-      const skipped = pendingPhotoImports.length - saveItems.length;
-      const unclassified = saveItems.filter(item => item.selectedKey === "unclassified:unclassified").length;
-      closePhotoImportDialog();
-      await renderGallery();
-      if (skipped) {
-        toast(`${saveItems.length} saved · ${skipped} skipped`);
-      } else if (unclassified) {
-        toast(`${saveItems.length} saved · ${unclassified} unclassified`);
-      } else {
-        toast(`${saveItems.length} photo${saveItems.length===1?"":"s"} assigned`);
-      }
-    } catch (err) {
-      console.error(err);
-      toast("Could not save all photos");
-    } finally {
-      const btn = $("#photoImportSave");
-      if (btn) btn.disabled = false;
-    }
-  }
-
-  function galleryOwnerDetails(photo) {
-    if (photo.ownerType === "unclassified") {
-      return {
-        title: "Unclassified",
-        meta: "Photos without a matching conference session",
-        sortKey: "9999|unclassified"
-      };
-    }
-    if (photo.ownerType === "poster") {
-      const p = posterById.get(photo.ownerId);
-      return {
-        title: p ? `Poster #${p.number} · ${p.title}` : "Poster",
-        meta: "Tuesday 6 October · 18:00–20:00 · Staatsarchiv",
-        sortKey: `2026-10-06|18:00|${String(p?.number || 999).padStart(3,"0")}`
-      };
-    }
-    const e = byId.get(photo.ownerId);
-    if (!e) return {title:"Programme item", meta:"", sortKey:"9999"};
-    const room = e.room ? ` · ${e.room}` : "";
-    return {
-      title: e.title,
-      meta: `${e.weekday} ${e.dateLabel} · ${e.start}–${e.end}${room}`,
-      sortKey: `${e.date}|${e.start}|${e.track || 0}`
-    };
-  }
-
-  function clearGalleryObjectUrls() {
-    galleryObjectUrls.forEach(url => URL.revokeObjectURL(url));
-    galleryObjectUrls = [];
-  }
-
-  function clearModalPhotoObjectUrls() {
-    modalPhotoObjectUrls.forEach(url => URL.revokeObjectURL(url));
-    modalPhotoObjectUrls = [];
-  }
-
-
-  function escapeRegExp(value="") {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  function highlightSearch(text, query) {
-    const value = String(text || "");
-    const q = String(query || "").trim();
-    if (!q) return esc(value);
-    const re = new RegExp(`(${escapeRegExp(q)})`, "ig");
-    return value.split(re).map((part, index) =>
-      index % 2 ? `<mark>${esc(part)}</mark>` : esc(part)
-    ).join("");
-  }
-
-  function noteSnippet(text, query, maxLength=260) {
-    const value = String(text || "").replace(/\s+/g, " ").trim();
-    if (!value) return "";
-    if (value.length <= maxLength) return value;
-
-    const q = String(query || "").trim().toLowerCase();
-    if (!q) return value.slice(0, maxLength).trimEnd() + "…";
-
-    const hit = value.toLowerCase().indexOf(q);
-    if (hit < 0) return value.slice(0, maxLength).trimEnd() + "…";
-
-    const before = Math.floor((maxLength - q.length) * 0.42);
-    let start = Math.max(0, hit - before);
-    let end = Math.min(value.length, start + maxLength);
-    if (end - start < maxLength) start = Math.max(0, end - maxLength);
-
-    return `${start > 0 ? "…" : ""}${value.slice(start, end).trim()}${end < value.length ? "…" : ""}`;
-  }
-
-  function collectNoteEntries() {
-    const entries = [];
-    const notes = state.notes && typeof state.notes === "object" ? state.notes : {};
-
-    for (const [key, rawNote] of Object.entries(notes)) {
-      const note = String(rawNote || "").trim();
-      if (!note) continue;
-
-      const divider = key.indexOf(":");
-      if (divider < 0) continue;
-      const type = key.slice(0, divider);
-      const id = key.slice(divider + 1);
-
-      if (type === "event") {
-        const e = byId.get(id);
-        if (!e) continue;
-        entries.push({
-          type,
-          id,
-          title: e.title || "Presentation",
-          person: e.speaker || "",
-          affiliation: e.affiliation || "",
-          note,
-          meta: `${e.weekday} ${e.dateLabel} · ${e.start}–${e.end}${e.room ? ` · ${e.room}` : ""}`,
-          sortKey: `${e.date}|${e.start}|${String(e.track || 0).padStart(2,"0")}|${e.title || ""}`
-        });
-      } else if (type === "poster") {
-        const p = posterById.get(id);
-        if (!p) continue;
-        entries.push({
-          type,
-          id,
-          title: `Poster #${p.number} · ${p.title}`,
-          person: p.author || "",
-          affiliation: p.affiliation || "",
-          note,
-          meta: "Tuesday 6 October · 18:00–20:00 · Staatsarchiv",
-          sortKey: `2026-10-06|18:00|99|${String(p.number || 999).padStart(3,"0")}`
-        });
-      }
-    }
-
-    return entries.sort((a,b) => a.sortKey.localeCompare(b.sortKey));
-  }
-
-  function syncGalleryMode() {
-    const mode = state.galleryMode === "notes" ? "notes" : "photos";
-    state.galleryMode = mode;
-
-    $$(".gallery-tab").forEach(btn => {
-      const active = btn.dataset.galleryPanel === mode;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-selected", active ? "true" : "false");
-    });
-
-    const photosPanel = $("#galleryPhotosPanel");
-    const notesPanel = $("#galleryNotesPanel");
-    if (photosPanel) photosPanel.hidden = mode !== "photos";
-    if (notesPanel) notesPanel.hidden = mode !== "notes";
-
-    const count = $("#galleryCount");
-    if (count) count.textContent = mode === "notes" ? galleryNoteCount : galleryPhotoCount;
-  }
-
-  function renderGalleryNotes() {
-    const target = $("#galleryNotesContent");
-    const meta = $("#galleryNotesMeta");
-    const tabCount = $("#galleryNotesCount");
-    if (!target || !meta || !tabCount) return;
-
-    const allEntries = collectNoteEntries();
-    galleryNoteCount = allEntries.length;
-    tabCount.textContent = galleryNoteCount;
-
-    const query = String(galleryNoteQuery || "").trim();
-    const q = query.toLowerCase();
-    const filtered = q ? allEntries.filter(entry =>
-      [entry.title, entry.person, entry.affiliation, entry.note, entry.meta]
-        .some(value => String(value || "").toLowerCase().includes(q))
-    ) : allEntries;
-
-    meta.innerHTML = query
-      ? `<span>${filtered.length} result${filtered.length===1?"":"s"}</span><span>${galleryNoteCount} total notes</span>`
-      : `<span>${galleryNoteCount} note${galleryNoteCount===1?"":"s"}</span><span>Tap a note to open its presentation</span>`;
-
-    if (!filtered.length) {
-      target.innerHTML = query
-        ? `<div class="empty-state"><strong>No matching notes</strong>Try another word from your note, presentation title, speaker or author.</div>`
-        : `<div class="empty-state"><strong>No notes yet</strong>Notes you write under talks and posters will appear here automatically.</div>`;
-      syncGalleryMode();
-      return;
-    }
-
-    target.innerHTML = filtered.map(entry => {
-      const snippet = noteSnippet(entry.note, query);
-      const person = entry.person ? `<div class="gallery-note-person">${highlightSearch(entry.person, query)}</div>` : "";
-      return `<button class="gallery-note-card" type="button"
-        data-note-owner-type="${esc(entry.type)}"
-        data-note-owner-id="${esc(entry.id)}">
-        <div class="gallery-note-meta">${highlightSearch(entry.meta, query)}</div>
-        <div class="gallery-note-title">${highlightSearch(entry.title, query)}</div>
-        ${person}
-        <div class="gallery-note-text">${highlightSearch(snippet, query)}</div>
-      </button>`;
-    }).join("");
-
-    syncGalleryMode();
-  }
-
-  async function renderGallery() {
-    const target = $("#galleryContent");
-    const count = $("#galleryCount");
-    const meta = $("#galleryMeta");
-    if (!target || !count || !meta) return;
-    clearGalleryObjectUrls();
-    target.innerHTML = `<div class="photo-loading">Loading gallery…</div>`;
-    try {
-      const photos = await getAllPhotos();
-      for (const photo of photos) {
-        if (!photo.thumbnailBlob) await ensurePhotoThumbnail(photo);
-      }
-      galleryPhotoCount = photos.length;
-      count.textContent = state.galleryMode === "notes" ? galleryNoteCount : galleryPhotoCount;
-      meta.innerHTML = `<span>${photos.length} photo${photos.length===1?"":"s"}</span><span>Stored locally on this device</span>`;
-      renderGalleryNotes();
-      if (!photos.length) {
-        target.innerHTML = `<div class="empty-state"><strong>No photos yet</strong>Import conference photos by time, or add them from an individual talk or poster.</div>`;
-        syncGalleryMode();
-        return;
-      }
-      const groups = new Map();
-      for (const photo of photos) {
-        if (!groups.has(photo.ownerKey)) groups.set(photo.ownerKey, []);
-        groups.get(photo.ownerKey).push(photo);
-      }
-      const ordered = [...groups.values()].sort((x,y) => galleryOwnerDetails(x[0]).sortKey.localeCompare(galleryOwnerDetails(y[0]).sortKey));
-      target.innerHTML = ordered.map(group => {
-        const first = group[0];
-        const info = galleryOwnerDetails(first);
-        const unclassifiedGroup = first.ownerType === "unclassified";
-        const thumbs = group.map(photo => {
-          const url = URL.createObjectURL(photo.thumbnailBlob || photo.blob);
-          galleryObjectUrls.push(url);
-          const stamp = photo.captureTime || "";
-          const customTitle = String(photo.customTitle || "").trim();
-          const customNote = String(photo.customNote || "").trim();
-          const hasMeta = !!(customTitle || customNote || photo.ownerType === "unclassified");
-          return `<div class="gallery-thumb-item${hasMeta ? " gallery-thumb-item-titled" : ""}">
-            <button class="gallery-thumb" type="button" data-gallery-photo="${photo.id}" aria-label="Open photo${customTitle ? `: ${esc(customTitle)}` : ""}">
-              <img src="${url}" alt="Conference photo thumbnail" loading="lazy">
-              ${stamp ? `<span class="gallery-thumb-time">${esc(stamp)}</span>` : ""}
-            </button>
-            <button class="gallery-delete" type="button" data-gallery-delete="${photo.id}" aria-label="Delete photo">×</button>
-            ${hasMeta ? `<div class="gallery-thumb-title">${esc(customTitle || (photo.ownerType === "unclassified" ? "Untitled photo" : "Photo"))}</div>` : ""}
-            ${customNote ? `<div class="gallery-thumb-note">${esc(customNote)}</div>` : ""}
-          </div>`;
-        }).join("");
-        return `<section class="gallery-group${unclassifiedGroup ? " gallery-group-unclassified" : ""}">
-          <button class="gallery-group-head" type="button" data-gallery-owner-type="${esc(first.ownerType)}" data-gallery-owner-id="${esc(first.ownerId)}">
-            <span class="gallery-group-copy"><strong>${esc(info.title)}</strong><small>${esc(unclassifiedGroup ? "Tap a photo to view it and edit its title or notes" : info.meta)}</small></span>
-            <span class="gallery-group-count">${group.length}</span>
-          </button>
-          <div class="gallery-thumb-grid">${thumbs}</div>
-        </section>`;
-      }).join("");
-      syncGalleryMode();
-    } catch (err) {
-      console.error(err);
-      galleryPhotoCount = 0;
-      count.textContent = state.galleryMode === "notes" ? galleryNoteCount : "0";
-      target.innerHTML = `<div class="photo-empty">Could not load the gallery on this device.</div>`;
-      renderGalleryNotes();
-      syncGalleryMode();
-    }
-  }
-
-  function photoSectionHtml() {
-    return `<section class="photo-section">
-      <div class="photo-section-head">
-        <h3>Photos</h3>
-      </div>
-      <div class="photo-action-row">
-        <button id="modalTakePhoto" class="primary-btn photo-action-btn" type="button">Take photo</button>
-        <button id="modalAddPhotos" class="secondary-btn photo-action-btn" type="button">Add existing</button>
-      </div>
-      <p class="photo-section-note">Camera photos are attached directly to this presentation. The app also tries to save a normal image copy to your phone.</p>
-      <div id="modalPhotos" class="photo-grid"><div class="photo-loading">Loading…</div></div>
-    </section>`;
-  }
-
-  async function renderModalPhotos() {
-    const target = $("#modalPhotos");
-    if (!target || !currentModal) return;
-    clearModalPhotoObjectUrls();
-    target.innerHTML = `<div class="photo-loading">Loading…</div>`;
-    try {
-      const photos = await getPhotos(currentModal.type, currentModal.id);
-      if (!photos.length) {
-        target.innerHTML = `<div class="photo-empty">No photos attached yet.</div>`;
-        return;
-      }
-      for (const photo of photos) {
-        if (!photo.thumbnailBlob) await ensurePhotoThumbnail(photo);
-      }
-      target.innerHTML = photos.map(p => {
-        const url = URL.createObjectURL(p.thumbnailBlob || p.blob);
-        modalPhotoObjectUrls.push(url);
-        return `<div class="photo-item">
-          <button class="photo-thumb" type="button" data-photo-id="${p.id}" aria-label="Open photo">
-            <img src="${url}" alt="Presentation photo thumbnail" loading="lazy">
-          </button>
-          <button class="photo-delete" type="button" data-photo-delete="${p.id}" aria-label="Delete photo">×</button>
-        </div>`;
-      }).join("");
-    } catch {
-      target.innerHTML = `<div class="photo-empty">Could not load photos on this device.</div>`;
-    }
-  }
-
-
-  function photoOwnerTitle(type, id) {
-    if (type === "poster") {
-      const p = posterById.get(id);
-      return p ? `Poster ${p.number} ${p.title}` : "MEMRISYS poster";
-    }
-    const e = byId.get(id);
-    return e?.title || "MEMRISYS presentation";
-  }
-
-  function safePhotoFilenamePart(value, maxLength=72) {
-    return String(value || "")
-      .normalize("NFKD")
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, maxLength) || "presentation";
-  }
-
-  function imageExtension(file) {
-    const fromName = String(file?.name || "").match(/\.([a-zA-Z0-9]{2,5})$/)?.[1];
-    if (fromName) return fromName.toLowerCase();
-    const mime = String(file?.type || "").toLowerCase();
-    if (mime.includes("png")) return "png";
-    if (mime.includes("webp")) return "webp";
-    if (mime.includes("heic")) return "heic";
-    if (mime.includes("heif")) return "heif";
-    return "jpg";
-  }
-
-  function downloadCameraCopy(file, capture, type, id) {
-    try {
-      const title = safePhotoFilenamePart(photoOwnerTitle(type, id));
-      const stamp = capture?.date && capture?.time
-        ? `${capture.date}_${String(capture.time).replace(/:/g,"-")}`
-        : new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
-      const name = `MEMRISYS_${stamp}_${title}.${imageExtension(file)}`;
-      const url = URL.createObjectURL(file);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = name;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
-      return true;
-    } catch (err) {
-      console.warn("Could not save camera copy to device", err);
-      return false;
-    }
-  }
-
-  async function addSelectedPhotos(files, options={}) {
-    if (!currentModal || !files?.length) return;
-    const images = [...files].filter(f => f.type.startsWith("image/"));
-    if (!images.length) return toast("Choose image files");
-
-    const owner = {type:currentModal.type, id:currentModal.id};
-    toast(images.length === 1 ? "Adding photo…" : `Adding ${images.length} photos…`);
-
-    try {
-      let deviceCopies = 0;
-      for (const file of images) {
-        const capture = await captureInfoForFile(file);
-        await storePhoto(owner.type, owner.id, file, {
-          captureDate:capture.date,
-          captureTime:capture.time,
-          timestampSource:capture.source
-        });
-
-        if (options.saveDeviceCopy && downloadCameraCopy(file, capture, owner.type, owner.id)) {
-          deviceCopies += 1;
-        }
-      }
-
-      await renderModalPhotos();
-      renderGallery();
-
-      if (options.saveDeviceCopy && images.length === 1) {
-        toast(deviceCopies ? "Photo added · phone copy requested" : "Photo added");
-      } else if (options.saveDeviceCopy) {
-        toast(deviceCopies
-          ? `${images.length} photos added · phone copies requested`
-          : `${images.length} photos added`);
-      } else {
-        toast(images.length === 1 ? "Photo added" : `${images.length} photos added`);
-      }
-    } catch (err) {
-      console.error(err);
-      toast("Could not save photo");
-    }
-  }
-
-  function updatePhotoViewerControls() {
-    const prev = $("#photoViewerPrev");
-    const next = $("#photoViewerNext");
-    const counter = $("#photoViewerCounter");
-    const total = photoViewerIds.length;
-    const current = photoViewerIndex + 1;
-
-    prev.disabled = total <= 1 || photoViewerIndex <= 0;
-    next.disabled = total <= 1 || photoViewerIndex < 0 || photoViewerIndex >= total - 1;
-    prev.hidden = total <= 1;
-    next.hidden = total <= 1;
-    counter.textContent = total > 1 && current > 0 ? `${current} / ${total}` : "";
-  }
-
-
-  function photoOwnerLabel(photo) {
-    if (!photo) return "";
-    if (photo.ownerType === "unclassified") return "Unclassified";
-    if (photo.ownerType === "poster") {
-      const p = posterById.get(photo.ownerId);
-      return p ? `Poster #${p.number} · ${p.title}` : "Poster";
-    }
-    const e = byId.get(photo.ownerId);
-    return e ? e.title : "Presentation";
-  }
-
-  async function showPhotoViewerPhoto(photoId) {
-    const photo = await getPhoto(photoId);
-    if (!photo) return false;
-
-    const img = $("#photoViewerImage");
-    const old = img.dataset.objectUrl;
-    if (old) URL.revokeObjectURL(old);
-
-    const url = URL.createObjectURL(photo.blob);
-    img.src = url;
-    img.dataset.objectUrl = url;
-
-    const titleInput = $("#photoViewerTitle");
-    const noteInput = $("#photoViewerNote");
-    const saveStatus = $("#photoViewerSaveStatus");
-    const owner = $("#photoViewerOwner");
-    titleInput.value = String(photo.customTitle || "");
-    noteInput.value = String(photo.customNote || "");
-    titleInput.dataset.photoId = String(photo.id);
-    noteInput.dataset.photoId = String(photo.id);
-    if (owner) owner.textContent = photoOwnerLabel(photo);
-    if (saveStatus) saveStatus.textContent = "Saved automatically";
-
-    updatePhotoViewerControls();
-    return true;
-  }
-
-  async function openStoredPhoto(photoId, contextIds = null) {
-    try {
-      const normalizedId = String(photoId);
-      const ids = Array.isArray(contextIds)
-        ? [...new Set(contextIds.map(String))]
-        : [normalizedId];
-
-      if (!ids.includes(normalizedId)) ids.unshift(normalizedId);
-      photoViewerIds = ids;
-      photoViewerIndex = Math.max(0, photoViewerIds.indexOf(normalizedId));
-
-      const shown = await showPhotoViewerPhoto(normalizedId);
-      if (!shown) return;
-
-      const viewer = $("#photoViewer");
-      viewer.hidden = false;
-      viewer.setAttribute("aria-hidden", "false");
-      document.documentElement.classList.add("photo-viewer-open");
-      document.body.classList.add("photo-viewer-open");
-    } catch {
-      toast("Could not open photo");
-    }
-  }
-
-  async function movePhotoViewer(direction) {
-    const nextIndex = photoViewerIndex + direction;
-    if (nextIndex < 0 || nextIndex >= photoViewerIds.length) return;
-    photoViewerIndex = nextIndex;
-    try {
-      await showPhotoViewerPhoto(photoViewerIds[photoViewerIndex]);
-    } catch {
-      toast("Could not open photo");
-    }
-  }
-
-  function closePhotoViewer() {
-    const dlg = $("#photoViewer");
-    dlg.hidden = true;
-    dlg.setAttribute("aria-hidden", "true");
-    document.documentElement.classList.remove("photo-viewer-open");
-    document.body.classList.remove("photo-viewer-open");
-
-    const img = $("#photoViewerImage");
-    const url = img.dataset.objectUrl;
-    if (url) URL.revokeObjectURL(url);
-    img.removeAttribute("src");
-    delete img.dataset.objectUrl;
-
-    const titleInput = $("#photoViewerTitle");
-    const noteInput = $("#photoViewerNote");
-    const owner = $("#photoViewerOwner");
-    titleInput.value = "";
-    titleInput.dataset.photoId = "";
-    noteInput.value = "";
-    noteInput.dataset.photoId = "";
-    if (owner) owner.textContent = "";
-
-    photoViewerIds = [];
-    photoViewerIndex = -1;
-    updatePhotoViewerControls();
-  }
-
-  function conferenceNowParts() {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Berlin",
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-    }).formatToParts(new Date());
-    const get = t => parts.find(p => p.type === t)?.value || "";
-    return {date:`${get("year")}-${get("month")}-${get("day")}`, time:`${get("hour")}:${get("minute")}`};
-  }
-
-  function detectConferenceDay() {
-    const n = conferenceNowParts();
-    const d = DATA.days.find(x => x.date === n.date);
-    return d ? d.day : 1;
-  }
-
-  function applyTheme() {
-    const dark = state.theme === "dark" ||
-      (state.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    document.documentElement.classList.toggle("compact", !!state.compact);
-    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#000000" : "#f3f4f6");
-  }
-
-  function timeValue(t) {
-    const [h,m] = t.split(":").map(Number);
-    return h*60+m;
-  }
-
-  function fmtTime(event, which="start") {
-    const raw = event[which];
-    if (state.timeMode === "conference" || !raw) return raw;
-    const iso = `${event.date}T${raw}:00+02:00`;
-    return new Intl.DateTimeFormat(undefined, {hour:"2-digit", minute:"2-digit"}).format(new Date(iso));
-  }
-
-  function eventTimeLabel(event) {
-    return `${fmtTime(event,"start")}–${fmtTime(event,"end")}`;
-  }
-
-  function renderDays() {
-    $("#dayTabs").innerHTML = DATA.days.map(d => `
-      <button class="day-tab ${state.day===d.day?"active":""}" data-day="${d.day}">
-        <strong>${esc(d.weekday.slice(0,3))}</strong>
-        <span>${esc(d.dateLabel)}</span>
-      </button>`).join("");
-    $$(".day-tab").forEach(btn => btn.addEventListener("click", () => {
-      state.day = Number(btn.dataset.day);
-      saveState();
-      renderDays();
-      renderProgram();
-      window.scrollTo({top:0, behavior:"smooth"});
-    }));
-  }
-
-  function searchTextEvent(e) {
-    return [e.title,e.speaker,e.affiliation,e.session,e.chair,e.room].join(" ").toLowerCase();
-  }
-
-  function statusForSelectedDay() {
-    const now = conferenceNowParts();
-    const day = DATA.days.find(d => d.day === state.day);
-    const events = DATA.schedule.filter(e => e.day===state.day).sort((a,b)=>timeValue(a.start)-timeValue(b.start));
-    const first = events[0];
-    const last = events.reduce((a,b)=>timeValue(a.end)>timeValue(b.end)?a:b, events[0]);
-
-    if (now.date < DATA.days[0].date) {
-      return {title:`Conference starts ${DATA.days[0].weekday}`, sub:`First item ${DATA.days[0].dateLabel} at ${first.start} · Darmstadt time`};
-    }
-    if (now.date > DATA.days.at(-1).date) {
-      return {title:"Conference finished", sub:"Your starred talks and posters remain saved on this device."};
-    }
-    if (day.date !== now.date) {
-      return {title:`${day.weekday}, ${day.dateLabel}`, sub:`${events.length} program items · ${first.start}–${last.end} · Darmstadt`};
-    }
-    const minute = timeValue(now.time);
-    const current = events.filter(e => timeValue(e.start) <= minute && minute < timeValue(e.end));
-    if (current.length) {
-      const names = current.map(e => e.title).join(" · ");
-      return {title:"Happening now", sub:names};
-    }
-    const next = events.find(e => timeValue(e.start) > minute);
-    if (next) return {title:`Next at ${fmtTime(next,"start")}`, sub:next.title};
-    return {title:"Program finished for today", sub:`Last scheduled item ended at ${last.end}.`};
-  }
-
-  function renderStatus() {
-    const s = statusForSelectedDay();
-    $("#statusCard").innerHTML = `<div class="status-line"><span class="status-dot"></span><div><div class="status-title">${esc(s.title)}</div><div class="status-sub">${esc(s.sub)}</div></div></div>`;
-  }
-
-  function roomPill(room) {
-    if (!room) return "";
-    return `<span class="pill ${esc(room.toLowerCase())}">${esc(room)}</span>`;
-  }
-
-  function eventCard(e, conflict=false) {
-    const fav = state.favorites.includes(e.id);
-    const session = e.session ? `<span class="pill">${esc(e.session)}</span>` : "";
-    const person = e.speaker ? `${esc(e.speaker)}${e.affiliation ? ` · ${esc(e.affiliation)}` : ""}` : "";
-    return `
-      <article class="event-card track-${e.track} kind-${esc(e.kind)}" data-event="${e.id}" tabindex="0">
-        <button class="star-btn ${fav?"on":""}" data-star-event="${e.id}" aria-label="${fav?"Remove from":"Add to"} my schedule">${fav?"★":"☆"}</button>
-        <div class="card-kicker">${roomPill(e.room)}${session}</div>
-        <div class="event-title">${esc(e.title)}</div>
-        ${person?`<div class="event-person">${person}</div>`:""}
-        ${conflict?`<div class="conflict-note">Overlaps another starred item</div>`:""}
-      </article>`;
-  }
-
-  function bindEventCards(scope=document) {
-    scope.querySelectorAll("[data-event]").forEach(card => {
-      const open = () => openEvent(card.dataset.event);
-      card.addEventListener("click", (ev) => {
-        if (ev.target.closest("[data-star-event]")) return;
-        open();
-      });
-      card.addEventListener("keydown", (ev) => {
-        if ((ev.key==="Enter" || ev.key===" ") && !ev.target.closest("button")) { ev.preventDefault(); open(); }
-      });
-    });
-    scope.querySelectorAll("[data-star-event]").forEach(btn => {
-      btn.addEventListener("click", ev => {
-        ev.stopPropagation();
-        toggleEventFavorite(btn.dataset.starEvent);
-      });
-    });
-  }
-
-  function renderProgram() {
-    renderStatus();
-    const q = $("#programSearch").value.trim().toLowerCase();
-    let events = DATA.schedule.filter(e => q ? searchTextEvent(e).includes(q) : e.day===state.day);
-    if (state.room !== "all") events = events.filter(e => !e.room || e.room.toLowerCase()===state.room);
-    events.sort((a,b) => a.date.localeCompare(b.date) || timeValue(a.start)-timeValue(b.start) || a.track-b.track);
-
-    $("#programMeta").innerHTML = `<span>${q ? `${events.length} search results` : `${events.length} program items`}</span><span>${state.timeMode==="conference"?"Darmstadt time":"Device time"}</span>`;
-
-    if (!events.length) {
-      $("#programList").innerHTML = `<div class="empty-state"><strong>No matches</strong>Try another search or room filter.</div>`;
-      return;
-    }
-
-    const groups = new Map();
-    events.forEach(e => {
-      const key = q ? `${e.date}|${e.start}` : e.start;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(e);
-    });
-
-    $("#programList").innerHTML = [...groups.entries()].map(([key,items]) => {
-      const first = items[0];
-      const dayPrefix = q ? `<small>${esc(first.weekday.slice(0,3))} ${esc(first.dateLabel)}</small>` : "";
-      const endTimes = [...new Set(items.map(x => fmtTime(x,"end")))];
-      const span = endTimes.length===1 ? endTimes[0] : "";
-      const common = items.some(x => x.track===0);
-      return `<div class="time-group">
-        <div class="time-label">${esc(fmtTime(first,"start"))}${span?`<small>to ${esc(span)}</small>`:""}${dayPrefix}</div>
-        <div class="event-grid ${common||items.length===1?"single":""}">
-          ${items.map(e=>eventCard(e)).join("")}
-        </div>
-      </div>`;
-    }).join("");
-    bindEventCards($("#programList"));
-  }
-
-  function intervalsOverlap(a,b) {
-    return a.day===b.day && timeValue(a.start) < timeValue(b.end) && timeValue(b.start) < timeValue(a.end);
-  }
-
-  function renderMySchedule() {
-    const favEvents = state.favorites.map(id=>byId.get(id)).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)||timeValue(a.start)-timeValue(b.start));
-    const favPosters = state.posterFavorites.map(id=>posterById.get(id)).filter(Boolean).sort((a,b)=>a.number-b.number);
-    $("#favoriteCount").textContent = favEvents.length + favPosters.length;
-
-    if (!favEvents.length && !favPosters.length) {
-      $("#mySchedule").innerHTML = `<div class="empty-state"><strong>Nothing starred yet</strong>Tap ☆ on talks or posters to build a personal agenda.</div>`;
-      return;
-    }
-
-    const conflictIds = new Set();
-    for (let i=0;i<favEvents.length;i++) for (let j=i+1;j<favEvents.length;j++) {
-      if (intervalsOverlap(favEvents[i],favEvents[j])) { conflictIds.add(favEvents[i].id); conflictIds.add(favEvents[j].id); }
-    }
-
-    const byDay = new Map();
-    favEvents.forEach(e => {
-      if (!byDay.has(e.day)) byDay.set(e.day,[]);
-      byDay.get(e.day).push(e);
-    });
-
-    let html = [...byDay.entries()].map(([day,items]) => {
-      const meta = DATA.days.find(d=>d.day===day);
-      return `<section class="my-day">
-        <div class="my-day-head">${esc(meta.weekday)} · ${esc(meta.dateLabel)}</div>
-        <div class="timeline">
-          ${items.map(e=>`<div class="time-group"><div class="time-label">${esc(fmtTime(e,"start"))}<small>to ${esc(fmtTime(e,"end"))}</small></div><div class="event-grid single">${eventCard(e,conflictIds.has(e.id))}</div></div>`).join("")}
-        </div>
-      </section>`;
-    }).join("");
-
-    if (favPosters.length) {
-      html += `<section class="my-day"><div class="my-day-head">Starred posters · Tuesday 18:00–20:00</div><div class="poster-list">
-        ${favPosters.map(p=>posterCard(p)).join("")}
-      </div></section>`;
-    }
-    $("#mySchedule").innerHTML = html;
-    bindEventCards($("#mySchedule"));
-    bindPosterCards($("#mySchedule"));
-  }
-
-  function posterSearchText(p) {
-    return [p.number,p.title,p.author,p.affiliation,p.category,p.presentingAuthor,p.correspondingAuthor,p.abstract].filter(Boolean).join(" ").toLowerCase();
-  }
-
-  function posterCard(p) {
-    const fav = state.posterFavorites.includes(p.id);
-    return `<article class="poster-card" data-poster="${p.id}" tabindex="0">
-      <button class="star-btn ${fav?"on":""}" data-star-poster="${p.id}" aria-label="${fav?"Remove from":"Add to"} starred posters">${fav?"★":"☆"}</button>
-      <div class="poster-top"><span class="poster-number">#${p.number}</span><span class="pill">${esc(p.category)}</span></div>
-      <div class="poster-title">${esc(p.title)}</div>
-      <div class="poster-author">${esc(p.author)}${p.affiliation?` · ${esc(p.affiliation)}`:""}</div>
-    </article>`;
-  }
-
-  function bindPosterCards(scope=document) {
-    scope.querySelectorAll("[data-poster]").forEach(card => {
-      const open = () => openPoster(card.dataset.poster);
-      card.addEventListener("click", ev => {
-        if (ev.target.closest("[data-star-poster]")) return;
-        open();
-      });
-      card.addEventListener("keydown", ev => {
-        if ((ev.key==="Enter"||ev.key===" ") && !ev.target.closest("button")) { ev.preventDefault(); open(); }
-      });
-    });
-    scope.querySelectorAll("[data-star-poster]").forEach(btn => {
-      btn.addEventListener("click", ev => {
-        ev.stopPropagation();
-        togglePosterFavorite(btn.dataset.starPoster);
-      });
-    });
-  }
-
-  function renderPosters() {
-    const q = $("#posterSearch").value.trim().toLowerCase();
-    let posters = DATA.posters.filter(p => !q || posterSearchText(p).includes(q));
-    if (state.posterCategory !== "all") posters = posters.filter(p => p.category===state.posterCategory);
-    $("#posterMeta").innerHTML = `<span>${posters.length} posters</span><span>${state.posterFavorites.length} starred</span>`;
-    $("#posterList").innerHTML = posters.length ? posters.map(p=>posterCard(p)).join("") :
-      `<div class="empty-state"><strong>No matches</strong>Try another search or category.</div>`;
-    bindPosterCards($("#posterList"));
-  }
-
-  function toggleEventFavorite(id) {
-    state.favorites = state.favorites.includes(id) ? state.favorites.filter(x=>x!==id) : [...state.favorites,id];
-    saveState(); renderProgram(); renderMySchedule();
-    if (currentModal?.type==="event" && currentModal.id===id) refreshModalStar();
-  }
-
-  function togglePosterFavorite(id) {
-    state.posterFavorites = state.posterFavorites.includes(id) ? state.posterFavorites.filter(x=>x!==id) : [...state.posterFavorites,id];
-    saveState(); renderPosters(); renderMySchedule();
-    if (currentModal?.type==="poster" && currentModal.id===id) refreshModalStar();
-  }
-
-  function refreshModalStar() {
-    const on = currentModal?.type==="event"
-      ? state.favorites.includes(currentModal.id)
-      : state.posterFavorites.includes(currentModal.id);
-    $("#modalStar").classList.toggle("on",on);
-    $("#modalStar").textContent = on ? "★" : "☆";
-  }
-
-  const MAIN_VENUE = {
-    name: "darmstadtium",
-    address: "Schlossgraben 1, 64283 Darmstadt, Germany",
-    maps: "https://www.google.com/maps/search/?api=1&query=darmstadtium%2C%20Schlossgraben%201%2C%2064283%20Darmstadt%2C%20Germany"
+  const notes=[...new Set([...explicitNotes,...extras])].slice(0,24).join('\n');
+
+  const body = `${title}\n${text}`;
+  const servingsMatch = text.match(/(?:serves?|servings?|yield|annoksia?|annosta|annos|riittää|riittaa|porzioni?|dosi|persone)[ \t]*[:\-]?[ \t]*(\d+(?:[ \t]*[-–][ \t]*\d+)?)/i) || text.match(/(?:for|per)?[ \t]*(\d+(?:[ \t]*[-–][ \t]*\d+)?)[ \t]*(?:servings?|annosta|annos|porzioni?|persone)\b/i);
+  return {
+    id: uid('recipe'), title: title.trim().slice(0,160) || 'Untitled recipe',
+    category: inferCategory(body), tags: inferTags(body), servings: servingsMatch?.[1] || '',
+    ingredients, steps: stepLines, notes, favorite: false,
+    source: { type: source.type || 'text', url: source.url || '', label: source.label || '', filename: source.filename || '' },
+    imageUrl, mediaId: source.mediaId || '', mediaType: source.mediaType || '', thumbnailId: source.thumbnailId || '',
+    createdAt: Date.now(), updatedAt: Date.now()
   };
+}
 
-  function venueForEvent(e) {
-    const title = String(e?.title || "").toLowerCase();
-    if (title.includes("mensa stadtmitte")) {
-      return {name:"Mensa Stadtmitte", address:"TU Darmstadt", maps:"https://www.google.com/maps/search/?api=1&query=Mensa%20Stadtmitte%20TU%20Darmstadt"};
-    }
-    if (e?.kind === "poster-session" || title.includes("poster session")) {
-      return {name:"Staatsarchiv", address:"Darmstadt", maps:"https://www.google.com/maps/search/?api=1&query=Hessisches%20Staatsarchiv%20Darmstadt"};
-    }
-    return MAIN_VENUE;
+function sourceLabel(recipe) {
+  const type = recipe.source?.type || 'manual';
+  return ({text:'Text',website:'Web',image:'Photo',pdf:'PDF',video:'Video',manual:'Manual',shared:'Shared'})[type] || type;
+}
+function sourceDisplay(recipe) {
+  const type=recipe.source?.type || 'manual';
+  return ({text:t('textSource'),website:t('webSource'),image:t('photoSource'),pdf:t('pdfSource'),video:t('videoSource'),manual:t('manualSource'),shared:t('sharedSource')})[type] || sourceLabel(recipe);
+}
+
+async function getMediaUrl(id) {
+  if (!id) return '';
+  const item = await idbGet('media', id);
+  return item?.blob ? URL.createObjectURL(item.blob) : '';
+}
+async function storeMedia(blob, meta={}) {
+  const id = uid('media');
+  await idbPut('media', { id, blob, type: blob.type || meta.type || '', name: meta.name || '', createdAt: Date.now() });
+  return id;
+}
+async function deleteRecipeMedia(recipe) {
+  const ids = [recipe?.mediaId, recipe?.thumbnailId].filter(Boolean);
+  for (const id of ids) await idbDelete('media', id).catch(()=>{});
+}
+
+async function renderAll() {
+  renderRecipeFilters();
+  await renderRecipes();
+  renderAvailable();
+  renderMatches();
+  renderShopping();
+  renderPantry();
+  renderStorageInfo();
+}
+function renderRecipeFilters() {
+  const counts = new Map();
+  for (const r of recipes) {
+    counts.set(sourceLabel(r), (counts.get(sourceLabel(r))||0)+1);
+    if (r.category) counts.set(r.category, (counts.get(r.category)||0)+1);
   }
-
-  function venueBoxHtml(venue, room="") {
-    const roomText = room ? `${room[0].toUpperCase()+room.slice(1)} · ` : "";
-    return `<a class="detail-box detail-link" href="${venue.maps}" target="_blank" rel="noopener"><span>Venue</span><strong>${esc(roomText + venue.name)}</strong><small>${esc(venue.address)} · Open Maps ↗</small></a>`;
-  }
-
-  function openEvent(id) {
-    const e = byId.get(id); if (!e) return;
-    currentModal = {type:"event",id};
-    $("#modalContent").innerHTML = `
-      <div class="modal-kicker">${roomPill(e.room)}${e.session?`<span class="pill">${esc(e.session)}</span>`:""}<span class="pill">${esc(e.weekday)} ${esc(e.dateLabel)}</span></div>
-      <div class="modal-title">${esc(e.title)}</div>
-      ${e.speaker?`<div class="modal-person">${esc(e.speaker)}</div>`:""}
-      ${e.affiliation?`<div class="modal-aff">${esc(e.affiliation)}</div>`:""}
-      <div class="modal-details">
-        <div class="detail-box"><span>Time</span><strong>${esc(eventTimeLabel(e))}</strong></div>
-        ${venueBoxHtml(venueForEvent(e), e.room || "")}
-        ${e.chair?`<div class="detail-box"><span>Session chair</span><strong>${esc(e.chair)}</strong></div>`:""}
-        <div class="detail-box"><span>Program</span><strong>PDF page ${e.sourcePage}</strong></div>
-      </div>
-      ${noteSectionHtml("event", e.id)}
-      ${photoSectionHtml()}
-      <a class="pdf-link" href="./program.pdf#page=${e.sourcePage}" target="_blank" rel="noopener">Open this page in the PDF ↗</a>`;
-    refreshModalStar();
-    $("#detailModal").showModal();
-    renderModalPhotos();
-  }
-
-  function openPoster(id) {
-    const p = posterById.get(id); if (!p) return;
-    currentModal = {type:"poster",id};
-    const abstractHtml = (p.abstract || "").split(/\n\s*\n/).filter(Boolean).map(x=>`<p>${esc(x)}</p>`).join("");
-    $("#modalContent").innerHTML = `
-      <div class="modal-kicker"><span class="pill">Poster #${p.number}</span><span class="pill">${esc(p.category)}</span><span class="pill">Abstract p. ${p.abstractBookPage}</span></div>
-      <div class="modal-title">${esc(p.title)}</div>
-      <div class="modal-person">${esc(p.author)}</div>
-      <div class="modal-aff">${esc(p.affiliation)}</div>
-      <div class="modal-details">
-        <div class="detail-box"><span>Session</span><strong>Tuesday 6 October · 18:00–20:00</strong></div>
-        ${venueBoxHtml({name:"Staatsarchiv", address:"Darmstadt", maps:"https://www.google.com/maps/search/?api=1&query=Hessisches%20Staatsarchiv%20Darmstadt"})}
-        <div class="detail-box"><span>Venue</span><strong>Staatsarchiv</strong></div>
-        <div class="detail-box"><span>Presenting author</span><strong>${esc(p.presentingAuthor || p.author || "—")}</strong></div>
-        <div class="detail-box"><span>Corresponding author</span><strong>${esc(p.correspondingAuthor || "—")}</strong></div>
-        <div class="detail-box"><span>Program</span><strong>PDF page ${p.sourcePage}</strong></div>
-        <div class="detail-box"><span>Book of Abstracts</span><strong>Page ${p.abstractBookPage}</strong></div>
-      </div>
-      ${noteSectionHtml("poster", p.id)}
-      ${photoSectionHtml()}
-      ${p.abstract ? `<section class="abstract-section"><h3>Abstract</h3><div class="abstract-text">${abstractHtml}</div></section>` : ""}
-      <a class="pdf-link" href="./program.pdf#page=${p.sourcePage}" target="_blank" rel="noopener">Open this poster in the program PDF ↗</a>`;
-    refreshModalStar();
-    $("#detailModal").showModal();
-    renderModalPhotos();
-  }
-
-  function showView(name) {
-    state.view = name; saveState();
-    $$(".view").forEach(v => v.classList.toggle("active",v.dataset.view===name));
-    $$(".nav-btn").forEach(b => b.classList.toggle("active",b.dataset.target===name));
-    if (name==="my") renderMySchedule();
-    if (name==="gallery") renderGallery();
-    if (name==="posters") renderPosters();
-    window.scrollTo({top:0,behavior:"smooth"});
-  }
-
-  function toast(msg) {
-    const t=$("#toast"); t.textContent=msg; t.classList.add("show");
-    clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),1800);
-  }
-
-
-  function xmlEsc(v="") {
-    return String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  }
-
-  function safeFilenamePart(v="") {
-    return String(v).replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,42) || "memrisys";
-  }
-
-  function emu(inches) {
-    return Math.round(inches * 914400);
-  }
-
-  function textToParagraphs(text, fontSize=1400, bold=false, color="1f2937") {
-    const lines = String(text || "").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n");
-    const safeLines = lines.length ? lines : [""];
-    return safeLines.map(line => `<a:p><a:r><a:rPr lang="en-US" sz="${fontSize}" ${bold?'b="1" ':""}><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:rPr><a:t>${xmlEsc(line || " ")}</a:t></a:r><a:endParaRPr lang="en-US" sz="${fontSize}"/></a:p>`).join("");
-  }
-
-  function pptTextShape(shapeId, name, x, y, w, h, text, opts={}) {
-    const fontSize = opts.fontSize || 1400;
-    const bold = !!opts.bold;
-    const color = opts.color || "1f2937";
-    const fill = opts.fill ? `<a:solidFill><a:srgbClr val="${opts.fill}"/></a:solidFill>` : `<a:noFill/>`;
-    const line = opts.line ? `<a:ln><a:solidFill><a:srgbClr val="${opts.line}"/></a:solidFill></a:ln>` : `<a:ln><a:noFill/></a:ln>`;
-    return `<p:sp><p:nvSpPr><p:cNvPr id="${shapeId}" name="${xmlEsc(name)}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${fill}${line}</p:spPr><p:txBody><a:bodyPr wrap="square" lIns="91440" tIns="68580" rIns="91440" bIns="68580" anchor="t"/><a:lstStyle/>${textToParagraphs(text,fontSize,bold,color)}</p:txBody></p:sp>`;
-  }
-
-  function pptPicture(picId, relId, x, y, w, h, name="Photo") {
-    return `<p:pic><p:nvPicPr><p:cNvPr id="${picId}" name="${xmlEsc(name)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:solidFill><a:srgbClr val="d1d5db"/></a:solidFill></a:ln></p:spPr></p:pic>`;
-  }
-
-  function fitInBox(imgW, imgH, x, y, w, h) {
-    const ratio = Math.min(w / imgW, h / imgH);
-    const outW = imgW * ratio;
-    const outH = imgH * ratio;
-    return {x:x+(w-outW)/2, y:y+(h-outH)/2, w:outW, h:outH};
-  }
-
-  function photoChronoKey(photo) {
-    const date = String(photo?.captureDate || "9999-12-31");
-    const time = String(photo?.captureTime || "23:59:59");
-    const added = String(photo?.addedAt || 0).padStart(16,"0");
-    const id = String(photo?.id || "").padStart(10,"0");
-    return `${date}|${time}|${added}|${id}`;
-  }
-
-  function ownerInfoForExport(type, id) {
-    if (type === "unclassified") {
-      return {title:"Unclassified photos", meta:"Photos without a matching conference session", sortKey:"9999-12-31|23:59:59|9|unclassified"};
-    }
-    if (type === "poster") {
-      const p = posterById.get(id);
-      if (!p) return {title:"Poster", meta:"Poster session", sortKey:"9999-12-31|23:59:59|8|poster"};
-      return {
-        title:`Poster #${p.number} · ${p.title}`,
-        meta:`Tuesday 6 October · 18:00–20:00 · Staatsarchiv · ${p.author || ""}`,
-        sortKey:`2026-10-06|18:00:00|1|${String(p.number || 999).padStart(3,"0")}`
-      };
-    }
-    const e = byId.get(id);
-    if (!e) return {title:"Programme item", meta:"", sortKey:"9999-12-31|23:59:59|8|event"};
-    const person = e.speaker ? ` · ${e.speaker}` : "";
-    const room = e.room ? ` · ${e.room}` : "";
-    return {
-      title:e.title,
-      meta:`${e.weekday} ${e.dateLabel} · ${e.start}–${e.end}${room}${person}`,
-      sortKey:`${e.date}|${e.start}:00|0|${String(e.track || 0).padStart(2,"0")}|${e.id}`
-    };
-  }
-
-  function parseOwnerKey(key) {
-    const idx = String(key).indexOf(":");
-    if (idx < 0) return {type:"event", id:key};
-    return {type:key.slice(0,idx), id:key.slice(idx+1)};
-  }
-
-  async function collectNotesPhotosForPptx() {
-    const map = new Map();
-    const ensure = (type, id) => {
-      const key = photoOwnerKey(type,id);
-      if (!map.has(key)) {
-        const info = ownerInfoForExport(type,id);
-        map.set(key, {key, type, id, info, note:getNote(type,id), photos:[]});
-      }
-      return map.get(key);
-    };
-
-    for (const [key,value] of Object.entries(state.notes || {})) {
-      if (!String(value || "").trim()) continue;
-      const {type,id} = parseOwnerKey(key);
-      ensure(type,id).note = String(value || "");
-    }
-
-    const photos = await getAllPhotos();
-    for (const photo of photos) {
-      if ((photo.ownerType || "") === "unclassified") {
-        const title = String(photo.customTitle || "").trim() || "Unclassified photo";
-        const stamp = [photo.captureDate, photo.captureTime].filter(Boolean).join(" · ");
-        const key = `unclassified-photo:${photo.id}`;
-        map.set(key, {
-          key,
-          type:"unclassified",
-          id:String(photo.id),
-          info:{
-            title,
-            meta: stamp ? `${stamp} · Unclassified` : "Unclassified photo",
-            sortKey:`${String(photo.captureDate || "9999-12-31")}|${String(photo.captureTime || "23:59:59")}|2|unclassified|${String(photo.id).padStart(8,"0")}`
-          },
-          note:"",
-          photos:[photo]
-        });
-      } else {
-        ensure(photo.ownerType || "event", photo.ownerId || "").photos.push(photo);
-      }
-    }
-
-    return [...map.values()]
-      .filter(item => String(item.note || "").trim() || item.photos.length)
-      .map(item => ({
-        ...item,
-        // Keep all photos attached to their topic, but order photos inside that
-        // topic chronologically by the photo capture time.
-        photos:[...item.photos].sort((a,b)=>photoChronoKey(a).localeCompare(photoChronoKey(b)))
-      }))
-      .sort((a,b)=>a.info.sortKey.localeCompare(b.info.sortKey));
-  }
-
-  async function imageBlobForPptx(photo) {
-    const source = photo.blob || photo.thumbnailBlob;
-    if (!source) throw new Error("Missing image blob");
-    const bitmap = await createImageBitmap(source);
-    const maxSide = 1600;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0,0,width,height);
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close?.();
-    const blob = await new Promise((resolve, reject) => canvas.toBlob(
-      out => out ? resolve(out) : reject(new Error("Could not prepare image for PowerPoint")),
-      "image/jpeg", 0.86
-    ));
-    return {blob, width, height};
-  }
-
-  async function blobToU8(blob) {
-    return new Uint8Array(await blob.arrayBuffer());
-  }
-
-  function strToU8(text) {
-    return new TextEncoder().encode(text);
-  }
-
-  function crc32(data) {
-    if (!crc32.table) {
-      const table = new Uint32Array(256);
-      for (let i=0;i<256;i++) {
-        let c=i;
-        for (let k=0;k<8;k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-        table[i]=c>>>0;
-      }
-      crc32.table=table;
-    }
-    let c=0xffffffff;
-    for (let i=0;i<data.length;i++) c=crc32.table[(c ^ data[i]) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  }
-
-  function writeU16(view, offset, value) { view.setUint16(offset, value, true); }
-  function writeU32(view, offset, value) { view.setUint32(offset, value >>> 0, true); }
-
-  function concatU8(parts) {
-    const total = parts.reduce((sum,p)=>sum+p.length,0);
-    const out = new Uint8Array(total);
-    let offset=0;
-    for (const part of parts) { out.set(part,offset); offset += part.length; }
-    return out;
-  }
-
-  function dosDateTime(date=new Date()) {
-    const time = ((date.getHours() & 31) << 11) | ((date.getMinutes() & 63) << 5) | Math.floor(date.getSeconds()/2);
-    const day = ((date.getFullYear()-1980) << 9) | ((date.getMonth()+1) << 5) | date.getDate();
-    return {time, day};
-  }
-
-  function makeZip(files) {
-    const now = dosDateTime();
-    const localParts = [];
-    const centralParts = [];
-    let offset = 0;
-
-    for (const file of files) {
-      const name = strToU8(file.name);
-      const data = file.data instanceof Uint8Array ? file.data : strToU8(file.data);
-      const crc = crc32(data);
-      const local = new Uint8Array(30 + name.length);
-      const lv = new DataView(local.buffer);
-      writeU32(lv,0,0x04034b50); writeU16(lv,4,20); writeU16(lv,6,0x0800); writeU16(lv,8,0);
-      writeU16(lv,10,now.time); writeU16(lv,12,now.day); writeU32(lv,14,crc);
-      writeU32(lv,18,data.length); writeU32(lv,22,data.length); writeU16(lv,26,name.length); writeU16(lv,28,0);
-      local.set(name,30);
-      localParts.push(local,data);
-
-      const central = new Uint8Array(46 + name.length);
-      const cv = new DataView(central.buffer);
-      writeU32(cv,0,0x02014b50); writeU16(cv,4,20); writeU16(cv,6,20); writeU16(cv,8,0x0800); writeU16(cv,10,0);
-      writeU16(cv,12,now.time); writeU16(cv,14,now.day); writeU32(cv,16,crc);
-      writeU32(cv,20,data.length); writeU32(cv,24,data.length); writeU16(cv,28,name.length); writeU16(cv,30,0); writeU16(cv,32,0);
-      writeU16(cv,34,0); writeU16(cv,36,0); writeU32(cv,38,0); writeU32(cv,42,offset);
-      central.set(name,46);
-      centralParts.push(central);
-      offset += local.length + data.length;
-    }
-
-    const centralStart = offset;
-    const centralData = concatU8(centralParts);
-    const eocd = new Uint8Array(22);
-    const ev = new DataView(eocd.buffer);
-    writeU32(ev,0,0x06054b50); writeU16(ev,4,0); writeU16(ev,6,0); writeU16(ev,8,files.length); writeU16(ev,10,files.length);
-    writeU32(ev,12,centralData.length); writeU32(ev,16,centralStart); writeU16(ev,20,0);
-    return new Blob([concatU8(localParts), centralData, eocd], {type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
-  }
-
-  function contentTypesXml(slideCount) {
-    let overrides = `<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/><Override PartName="/ppt/viewProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"/><Override PartName="/ppt/tableStyles.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"/><Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/><Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/><Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>`;
-    for (let i=1;i<=slideCount;i++) overrides += `<Override PartName="/ppt/slides/slide${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/>${overrides}</Types>`;
-  }
-
-  function rootRelsXml() {
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>`;
-  }
-
-  function presentationXml(slideCount) {
-    let ids = "";
-    for (let i=1;i<=slideCount;i++) ids += `<p:sldId id="${255+i}" r:id="rId${i+1}"/>`;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>${ids}</p:sldIdLst><p:sldSz cx="12192000" cy="6858000" type="wide"/><p:notesSz cx="6858000" cy="9144000"/><p:defaultTextStyle/></p:presentation>`;
-  }
-
-  function presentationRelsXml(slideCount) {
-    let rels = `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`;
-    for (let i=1;i<=slideCount;i++) rels += `<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i}.xml"/>`;
-    const base = slideCount + 2;
-    rels += `<Relationship Id="rId${base}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/><Relationship Id="rId${base+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/><Relationship Id="rId${base+2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>`;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`;
-  }
-
-  function slideXml(shapes) {
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
-  }
-
-  function slideRelsXml(imageRels) {
-    let rels = `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>`;
-    for (const rel of imageRels) rels += `<Relationship Id="${rel.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${rel.file}"/>`;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`;
-  }
-
-  function slideMasterXml() {
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>`;
-  }
-
-  function slideLayoutXml() {
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`;
-  }
-
-  function themeXml() {
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Memrisys"><a:themeElements><a:clrScheme name="Memrisys"><a:dk1><a:srgbClr val="111827"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1f2937"/></a:dk2><a:lt2><a:srgbClr val="f3f4f6"/></a:lt2><a:accent1><a:srgbClr val="1769E0"/></a:accent1><a:accent2><a:srgbClr val="9B5B08"/></a:accent2><a:accent3><a:srgbClr val="58A56C"/></a:accent3><a:accent4><a:srgbClr val="E7A400"/></a:accent4><a:accent5><a:srgbClr val="73767C"/></a:accent5><a:accent6><a:srgbClr val="000000"/></a:accent6><a:hlink><a:srgbClr val="1769E0"/></a:hlink><a:folHlink><a:srgbClr val="1769E0"/></a:folHlink></a:clrScheme><a:fontScheme name="Aptos"><a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/></a:minorFont></a:fontScheme><a:fmtScheme name="Memrisys"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
-  }
-
-  async function makeMemrisysPptx(items) {
-    const files = [];
-    const slideData = [];
-    const mediaFiles = [];
-    let mediaIndex = 1;
-
-    const addSlide = (shapes, imageRels=[]) => slideData.push({shapes, imageRels});
-
-    const noteCount = items.filter(x=>String(x.note||"").trim()).length;
-    const photoCount = items.reduce((sum,x)=>sum+x.photos.length,0);
-    addSlide(
-      pptTextShape(2,"Title",0.7,0.75,12,0.75,"MEMRISYS 2026",{fontSize:3600,bold:true,color:"111827"}) +
-      pptTextShape(3,"Subtitle",0.75,1.65,11.8,0.65,"Notes and presentation photos",{fontSize:2200,color:"1769E0"}) +
-      pptTextShape(4,"Summary",0.8,2.75,11.6,2.2,`${items.length} presentations / groups\n${noteCount} with notes\n${photoCount} photos\nExported ${new Date().toLocaleString()}`,{fontSize:1700,color:"374151",fill:"f3f4f6",line:"d1d5db"}) +
-      pptTextShape(5,"Footer",0.8,6.65,11.6,0.35,"Generated locally from the MEMRISYS 2026 app",{fontSize:1000,color:"6b7280"})
-    );
-
-    for (const item of items) {
-      const prepared = [];
-      for (const photo of item.photos) {
-        try {
-          const img = await imageBlobForPptx(photo);
-          const file = `image${mediaIndex++}.jpg`;
-          mediaFiles.push({name:`ppt/media/${file}`, data: await blobToU8(img.blob)});
-          const photoTitle = String(photo.customTitle || "").trim();
-          const photoNote = String(photo.customNote || "").trim();
-          const fallbackCaption = photo.captureTime || photo.name || "Photo";
-          const caption = photoTitle || fallbackCaption;
-          prepared.push({...img, file, caption, photoNote});
-        } catch (err) {
-          console.warn("Skipping photo in PPTX export", err);
-        }
-      }
-
-      const chunks = [];
-      if (prepared.length) {
-        for (let i=0;i<prepared.length;i+=4) chunks.push(prepared.slice(i,i+4));
-      } else {
-        chunks.push([]);
-      }
-
-      chunks.forEach((chunk, chunkIndex) => {
-        let shapeId = 2;
-        let shapes = "";
-        const imageRels = [];
-        const title = chunkIndex ? `${item.info.title} — photos ${chunkIndex*4+1}–${chunkIndex*4+chunk.length}` : item.info.title;
-        shapes += pptTextShape(shapeId++,"Title",0.42,0.25,12.5,0.45,title,{fontSize:1900,bold:true,color:"111827"});
-        shapes += pptTextShape(shapeId++,"Meta",0.45,0.73,12.35,0.35,item.info.meta,{fontSize:900,color:"6b7280"});
-
-        const hasNote = String(item.note || "").trim() && chunkIndex === 0;
-        const noteText = hasNote ? item.note : (chunkIndex === 0 && !chunk.length ? "No photos attached." : "");
-        if (hasNote || !chunk.length) {
-          const noteW = chunk.length ? 5.1 : 12.15;
-          shapes += pptTextShape(shapeId++,"Notes",0.45,1.18,noteW,5.8,noteText,{fontSize:1150,color:"111827",fill:"f9fafb",line:"e5e7eb"});
-        }
-
-        if (chunk.length) {
-          const x0 = hasNote ? 5.85 : 0.65;
-          const y0 = 1.25;
-          const gridW = hasNote ? 6.9 : 12.0;
-          const gridH = 5.55;
-          const gap = 0.18;
-          const boxes = chunk.length === 1
-            ? [{x:x0,y:y0,w:gridW,h:gridH}]
-            : chunk.length === 2
-              ? [{x:x0,y:y0,w:gridW,h:(gridH-gap)/2},{x:x0,y:y0+(gridH+gap)/2,w:gridW,h:(gridH-gap)/2}]
-              : [0,1,2,3].map(i => ({x:x0+(i%2)*(gridW+gap)/2,y:y0+Math.floor(i/2)*(gridH+gap)/2,w:(gridW-gap)/2,h:(gridH-gap)/2}));
-
-          chunk.forEach((img, idx) => {
-            const box = boxes[idx];
-            const metaHeight = img.photoNote ? 0.62 : 0.28;
-            const imageBoxHeight = Math.max(0.7, box.h - metaHeight);
-            const fit = fitInBox(img.width,img.height,box.x,box.y,box.w,imageBoxHeight);
-            const rId = `rId${imageRels.length+2}`;
-            imageRels.push({rId, file:img.file});
-            shapes += pptPicture(shapeId++,rId,fit.x,fit.y,fit.w,fit.h,`Photo ${idx+1}`);
-            if (img.caption) {
-              shapes += pptTextShape(shapeId++,"Caption",box.x,box.y+imageBoxHeight,box.w,0.24,img.caption,{fontSize:680,bold:!!img.photoNote,color:"374151",fill:"ffffff"});
-            }
-            if (img.photoNote) {
-              shapes += pptTextShape(shapeId++,"Photo note",box.x,box.y+imageBoxHeight+0.24,box.w,0.38,img.photoNote,{fontSize:560,color:"4b5563",fill:"f9fafb",line:"e5e7eb"});
-            }
-          });
-        }
-        addSlide(shapes, imageRels);
-      });
-    }
-
-    const slideCount = slideData.length;
-    files.push({name:"[Content_Types].xml", data:contentTypesXml(slideCount)});
-    files.push({name:"_rels/.rels", data:rootRelsXml()});
-    files.push({name:"ppt/presentation.xml", data:presentationXml(slideCount)});
-    files.push({name:"ppt/_rels/presentation.xml.rels", data:presentationRelsXml(slideCount)});
-    files.push({name:"ppt/presProps.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentationPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`});
-    files.push({name:"ppt/viewProps.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:viewPr xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`});
-    files.push({name:"ppt/tableStyles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>`});
-    files.push({name:"ppt/theme/theme1.xml", data:themeXml()});
-    files.push({name:"ppt/slideMasters/slideMaster1.xml", data:slideMasterXml()});
-    files.push({name:"ppt/slideMasters/_rels/slideMaster1.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>`});
-    files.push({name:"ppt/slideLayouts/slideLayout1.xml", data:slideLayoutXml()});
-    files.push({name:"ppt/slideLayouts/_rels/slideLayout1.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>`});
-
-    slideData.forEach((slide, i) => {
-      const num = i+1;
-      files.push({name:`ppt/slides/slide${num}.xml`, data:slideXml(slide.shapes)});
-      files.push({name:`ppt/slides/_rels/slide${num}.xml.rels`, data:slideRelsXml(slide.imageRels)});
-    });
-    files.push(...mediaFiles);
-    return makeZip(files);
-  }
-
-  async function exportNotesPhotosPptx() {
-    const btn = $("#exportPptxBtn");
-    const original = btn ? btn.textContent : "";
-    if (btn) { btn.disabled = true; btn.textContent = "Building…"; }
-    try {
-      const items = await collectNotesPhotosForPptx();
-      if (!items.length) {
-        toast("No notes or photos to export");
-        return;
-      }
-      const pptx = await makeMemrisysPptx(items);
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(pptx);
-      a.download = `memrisys-2026-notes-photos-${new Date().toISOString().slice(0,10)}.pptx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast("PowerPoint exported");
-    } catch (err) {
-      console.error(err);
-      toast("Could not export PowerPoint");
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = original || "Export PPTX"; }
-    }
-  }
-
-  function exportState() {
-    const payload = {version:1, exportedAt:new Date().toISOString(), state:{
-      favorites:state.favorites, posterFavorites:state.posterFavorites,
-      theme:state.theme, compact:state.compact, timeMode:state.timeMode,
-      notes:state.notes || {}
-    }};
-    const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download="memristor-calendar-backup.json"; a.click(); URL.revokeObjectURL(a.href);
-  }
-
-  async function importState(file) {
-    try {
-      const payload=JSON.parse(await file.text());
-      const incoming=payload.state||payload;
-      state={...state,...incoming};
-      state.favorites=(state.favorites||[]).filter(id=>byId.has(id));
-      state.posterFavorites=(state.posterFavorites||[]).filter(id=>posterById.has(id));
-      if (!state.notes || typeof state.notes !== "object" || Array.isArray(state.notes)) state.notes = {};
-      state.notes = Object.fromEntries(Object.entries(state.notes).filter(([key,value]) => {
-        const [type,id] = String(key).split(":");
-        return typeof value === "string" &&
-          ((type === "event" && byId.has(id)) || (type === "poster" && posterById.has(id)));
-      }));
-      saveState(); applyTheme(); syncSettings(); renderProgram(); renderPosters(); renderMySchedule();
-      toast("Backup imported");
-    } catch { toast("Could not import that file"); }
-  }
-
-  function isStandalone() {
-    return window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone === true;
-  }
-
-  function updateInstallUI() {
-    const btn = $("#installBtn");
-    const help = $("#installHelp");
-    if (!btn || !help) return;
-
-    if (isStandalone()) {
-      btn.textContent = "Installed";
-      btn.disabled = true;
-      help.textContent = "This planner is already running as an installed app.";
-      return;
-    }
-
-    btn.disabled = false;
-    btn.textContent = "Install";
-
-    if (deferredInstallPrompt) {
-      help.textContent = "Install this planner on your home screen for app-like access.";
-    } else {
-      help.textContent = "If no prompt opens, use your browser menu and choose Install app or Add to Home screen.";
-    }
-  }
-
-  async function installApp() {
-    if (isStandalone()) {
-      updateInstallUI();
-      return;
-    }
-
-    if (deferredInstallPrompt) {
-      const promptEvent = deferredInstallPrompt;
-      deferredInstallPrompt = null;
-      await promptEvent.prompt();
-      try { await promptEvent.userChoice; } catch {}
-      updateInstallUI();
-      return;
-    }
-
-    toast("Use browser menu → Install app / Add to Home screen");
-    updateInstallUI();
-  }
-
-  function syncSettings() {
-    $("#themeSelect").value=state.theme;
-    $("#timeModeSelect").value=state.timeMode;
-    $("#compactToggle").setAttribute("aria-checked",state.compact?"true":"false");
-    $$("#roomFilters .chip").forEach(x=>x.classList.toggle("active",x.dataset.room===state.room));
-    $$("#posterFilters .chip").forEach(x=>x.classList.toggle("active",x.dataset.category===state.posterCategory));
-  }
-
-  function wire() {
-    $("#programSearch").addEventListener("input",renderProgram);
-    $("#posterSearch").addEventListener("input",renderPosters);
-
-    $$("#roomFilters .chip").forEach(btn => btn.addEventListener("click",()=>{
-      state.room=btn.dataset.room; saveState(); syncSettings(); renderProgram();
-    }));
-    $$("#posterFilters .chip").forEach(btn => btn.addEventListener("click",()=>{
-      state.posterCategory=btn.dataset.category; saveState(); syncSettings(); renderPosters();
-    }));
-    $$(".nav-btn").forEach(btn=>btn.addEventListener("click",()=>showView(btn.dataset.target)));
-
-    $("#smartPhotoImportBtn").addEventListener("click",()=>$("#smartPhotoInput").click());
-    $("#smartPhotoInput").addEventListener("change",async e=>{
-      await beginSmartPhotoImport(e.target.files);
-      e.target.value="";
-    });
-    $("#photoImportList").addEventListener("change",e=>{
-      const select=e.target.closest("[data-import-select]");
-      if (!select) return;
-      const item=pendingPhotoImports[Number(select.dataset.importSelect)];
-      if (item) item.selectedKey=select.value;
-    });
-    $("#photoImportSave").addEventListener("click",saveSmartPhotoAssignments);
-    $("#photoImportCancel").addEventListener("click",closePhotoImportDialog);
-    $("#photoImportClose").addEventListener("click",closePhotoImportDialog);
-    $("#photoImportDialog").addEventListener("click",e=>{ if(e.target===$("#photoImportDialog")) closePhotoImportDialog(); });
-
-    $$(".gallery-tab").forEach(btn => btn.addEventListener("click", () => {
-      state.galleryMode = btn.dataset.galleryPanel === "notes" ? "notes" : "photos";
-      saveState();
-      if (state.galleryMode === "notes") renderGalleryNotes();
-      syncGalleryMode();
-    }));
-
-    $("#galleryNoteSearch").addEventListener("input", e => {
-      galleryNoteQuery = e.target.value;
-      renderGalleryNotes();
-    });
-
-    $("#galleryNotesContent").addEventListener("click", e => {
-      const card = e.target.closest("[data-note-owner-type]");
-      if (!card) return;
-      card.dataset.noteOwnerType === "poster"
-        ? openPoster(card.dataset.noteOwnerId)
-        : openEvent(card.dataset.noteOwnerId);
-    });
-
-    $("#galleryContent").addEventListener("click", async e => {
-      const del = e.target.closest("[data-gallery-delete]");
-      if (del) {
-        e.stopPropagation();
-        if (confirm("Delete this photo from the presentation?")) {
-          await deletePhoto(del.dataset.galleryDelete);
-          await renderGallery();
-          toast("Photo deleted");
-        }
-        return;
-      }
-      const thumb = e.target.closest("[data-gallery-photo]");
-      if (thumb) {
-        const galleryIds = [...$("#galleryContent").querySelectorAll("[data-gallery-photo]")]
-          .map(node => node.dataset.galleryPhoto);
-        openStoredPhoto(thumb.dataset.galleryPhoto, galleryIds);
-        return;
-      }
-      const owner = e.target.closest("[data-gallery-owner-type]");
-      if (owner) {
-        const type = owner.dataset.galleryOwnerType;
-        if (type === "unclassified") return;
-        type === "poster" ? openPoster(owner.dataset.galleryOwnerId) : openEvent(owner.dataset.galleryOwnerId);
-      }
-    });
-
-    $("#nowBtn").addEventListener("click",()=>{
-      state.day=detectConferenceDay(); saveState(); renderDays(); renderProgram(); showView("program");
-    });
-
-    $("#themeSelect").addEventListener("change",e=>{state.theme=e.target.value;saveState();applyTheme();});
-    $("#timeModeSelect").addEventListener("change",e=>{state.timeMode=e.target.value;saveState();renderProgram();renderMySchedule();});
-    $("#compactToggle").addEventListener("click",()=>{
-      state.compact=!state.compact;saveState();applyTheme();syncSettings();
-    });
-    $("#exportBtn").addEventListener("click",exportState);
-    $("#exportPptxBtn").addEventListener("click",exportNotesPhotosPptx);
-    $("#importBtn").addEventListener("click",()=>$("#importInput").click());
-    $("#importInput").addEventListener("change",e=>{if(e.target.files[0])importState(e.target.files[0]);e.target.value="";});
-    $("#installBtn").addEventListener("click", installApp);
-
-    $("#shareQrBtn").addEventListener("click", openShareQr);
-    $("#shareQrFullBtn").addEventListener("click", openShareQr);
-    $("#shareQrClose").addEventListener("click", closeShareQr);
-    $("#shareQrViewer").addEventListener("click", e => {
-      if (e.target === $("#shareQrViewer")) closeShareQr();
-    });
-
-    $("#clearBtn").addEventListener("click",()=>{
-      if (!state.favorites.length && !state.posterFavorites.length) return toast("No favorites to clear");
-      if (confirm("Clear all starred talks and posters?")) {
-        state.favorites=[];state.posterFavorites=[];saveState();renderProgram();renderPosters();renderMySchedule();toast("Favorites cleared");
-      }
-    });
-
-    let noteSaveTimer = null;
-    $("#modalContent").addEventListener("input", e => {
-      const note = e.target.closest("#modalNote");
-      if (!note) return;
-      const status = $("#noteSaveStatus");
-      if (status) status.textContent = "Saving…";
-      clearTimeout(noteSaveTimer);
-      noteSaveTimer = setTimeout(() => {
-        saveNote(note.dataset.noteType, note.dataset.noteId, note.value);
-        const currentStatus = $("#noteSaveStatus");
-        if (currentStatus) currentStatus.textContent = "Saved";
-      }, 250);
-    });
-
-    $("#modalContent").addEventListener("change", e => {
-      const note = e.target.closest("#modalNote");
-      if (!note) return;
-      clearTimeout(noteSaveTimer);
-      saveNote(note.dataset.noteType, note.dataset.noteId, note.value);
-      const status = $("#noteSaveStatus");
-      if (status) status.textContent = "Saved";
-    });
-
-    $("#modalContent").addEventListener("click", async e => {
-      const takeBtn = e.target.closest("#modalTakePhoto");
-      if (takeBtn) {
-        $("#cameraInput").click();
-        return;
-      }
-
-      const addBtn = e.target.closest("#modalAddPhotos");
-      if (addBtn) {
-        $("#photoInput").click();
-        return;
-      }
-      const delBtn = e.target.closest("[data-photo-delete]");
-      if (delBtn) {
-        e.stopPropagation();
-        if (confirm("Delete this photo from the presentation?")) {
-          await deletePhoto(delBtn.dataset.photoDelete);
-          await renderModalPhotos();
-          renderGallery();
-          toast("Photo deleted");
-        }
-        return;
-      }
-      const thumb = e.target.closest("[data-photo-id]");
-      if (thumb) {
-        const presentationIds = [...$("#modalPhotos").querySelectorAll("[data-photo-id]")]
-          .map(node => node.dataset.photoId);
-        openStoredPhoto(thumb.dataset.photoId, presentationIds);
-      }
-    });
-    $("#cameraInput").addEventListener("change", async e => {
-      const files = e.target.files;
-      await addSelectedPhotos(files, {saveDeviceCopy:true});
-      e.target.value = "";
-    });
-
-    $("#photoInput").addEventListener("change", async e => {
-      const files = e.target.files;
-      await addSelectedPhotos(files);
-      e.target.value = "";
-    });
-    $("#photoViewerClose").addEventListener("click", closePhotoViewer);
-    $("#photoViewerPrev").addEventListener("click", e => {
-      e.stopPropagation();
-      movePhotoViewer(-1);
-    });
-    $("#photoViewerNext").addEventListener("click", e => {
-      e.stopPropagation();
-      movePhotoViewer(1);
-    });
-
-    let photoMetaSaveTimer = null;
-
-    const markPhotoMetaSaving = () => {
-      const status = $("#photoViewerSaveStatus");
-      if (status) status.textContent = "Saving…";
-    };
-
-    const markPhotoMetaSaved = () => {
-      const status = $("#photoViewerSaveStatus");
-      if (status) status.textContent = "Saved";
-    };
-
-    $("#photoViewerTitle").addEventListener("input", e => {
-      const photoId = e.target.dataset.photoId;
-      if (!photoId) return;
-      markPhotoMetaSaving();
-      clearTimeout(photoMetaSaveTimer);
-      photoMetaSaveTimer = setTimeout(async () => {
-        try {
-          await updatePhotoTitle(photoId, e.target.value);
-          await renderGallery();
-          markPhotoMetaSaved();
-        } catch (err) {
-          console.error(err);
-          toast("Could not save photo title");
-        }
-      }, 250);
-    });
-
-    $("#photoViewerTitle").addEventListener("change", async e => {
-      const photoId = e.target.dataset.photoId;
-      if (!photoId) return;
-      clearTimeout(photoMetaSaveTimer);
-      try {
-        await updatePhotoTitle(photoId, e.target.value);
-        await renderGallery();
-        markPhotoMetaSaved();
-      } catch (err) {
-        console.error(err);
-        toast("Could not save photo title");
-      }
-    });
-
-    $("#photoViewerNote").addEventListener("input", e => {
-      const photoId = e.target.dataset.photoId;
-      if (!photoId) return;
-      markPhotoMetaSaving();
-      clearTimeout(photoMetaSaveTimer);
-      photoMetaSaveTimer = setTimeout(async () => {
-        try {
-          await updatePhotoNote(photoId, e.target.value);
-          await renderGallery();
-          markPhotoMetaSaved();
-        } catch (err) {
-          console.error(err);
-          toast("Could not save photo notes");
-        }
-      }, 250);
-    });
-
-    $("#photoViewerNote").addEventListener("change", async e => {
-      const photoId = e.target.dataset.photoId;
-      if (!photoId) return;
-      clearTimeout(photoMetaSaveTimer);
-      try {
-        await updatePhotoNote(photoId, e.target.value);
-        await renderGallery();
-        markPhotoMetaSaved();
-      } catch (err) {
-        console.error(err);
-        toast("Could not save photo notes");
-      }
-    });
-    $("#photoViewer").addEventListener("click", e => {
-      if (e.target === $("#photoViewer") || e.target === $("#photoViewerStage")) closePhotoViewer();
-    });
-
-    let photoSwipeStartX = null;
-    let photoSwipeStartY = null;
-    $("#photoViewerStage").addEventListener("touchstart", e => {
-      const touch = e.touches[0];
-      if (!touch) return;
-      photoSwipeStartX = touch.clientX;
-      photoSwipeStartY = touch.clientY;
-    }, {passive:true});
-    $("#photoViewerStage").addEventListener("touchend", e => {
-      if (photoSwipeStartX == null || photoSwipeStartY == null) return;
-      const touch = e.changedTouches[0];
-      if (!touch) return;
-      const dx = touch.clientX - photoSwipeStartX;
-      const dy = touch.clientY - photoSwipeStartY;
-      photoSwipeStartX = null;
-      photoSwipeStartY = null;
-      if (Math.abs(dx) < 45 || Math.abs(dx) <= Math.abs(dy)) return;
-      movePhotoViewer(dx < 0 ? 1 : -1);
-    }, {passive:true});
-    document.addEventListener("keydown", e => {
-      if (!$("#photoViewer").hidden) {
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          movePhotoViewer(-1);
-          return;
-        }
-        if (e.key === "ArrowRight") {
-          e.preventDefault();
-          movePhotoViewer(1);
-          return;
-        }
-      }
-
-      if (e.key !== "Escape") return;
-      if (!$("#shareQrViewer").hidden) {
-        closeShareQr();
-        return;
-      }
-      if (!$("#photoViewer").hidden) closePhotoViewer();
-    });
-
-    $("#modalClose").addEventListener("click",()=>$("#detailModal").close());
-    $("#detailModal").addEventListener("click",e=>{ if(e.target===$("#detailModal")) $("#detailModal").close(); });
-    $("#modalStar").addEventListener("click",()=>{
-      if (!currentModal) return;
-      currentModal.type==="event" ? toggleEventFavorite(currentModal.id) : togglePosterFavorite(currentModal.id);
-    });
-
-    matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>{if(state.theme==="system")applyTheme();});
-  }
-
-  function init() {
-    state.day = state.day || detectConferenceDay();
-    applyTheme();
-    renderDays();
-    syncSettings();
-    wire();
-    renderProgram();
-    renderPosters();
-    renderMySchedule();
-    renderGalleryNotes();
-    renderGallery();
-    showView(state.view || "program");
-    updateInstallUI();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker-v21.js", { scope: "./", updateViaCache: "none" }).catch(()=>{});
-  }
-
-  window.addEventListener("beforeinstallprompt", event => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-    updateInstallUI();
+  const filters = ['All','Favorites', ...[...counts.keys()].sort()];
+  const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||f;
+  $('#recipeFilters').innerHTML = filters.map(f => `<button class="filter-chip ${state.activeRecipeFilter===f?'active':''}" data-filter="${escapeHtml(f)}">${escapeHtml(filterText(f))}</button>`).join('');
+  $$('[data-filter]').forEach(b => b.onclick = () => { state.activeRecipeFilter=b.dataset.filter; saveState(); renderRecipeFilters(); renderRecipes(); });
+}
+function filteredRecipes() {
+  const q = normalizeText($('#recipeSearch')?.value || '');
+  const filter = state.activeRecipeFilter || 'All';
+  let out = recipes.filter(r => {
+    if (filter === 'Favorites' && !r.favorite) return false;
+    if (filter !== 'All' && filter !== 'Favorites' && sourceLabel(r)!==filter && r.category!==filter) return false;
+    if (!q) return true;
+    const hay = normalizeText([r.title,r.category,(r.tags||[]).join(' '),(r.ingredients||[]).map(i=>i.name).join(' '),r.notes].join(' '));
+    return q.split(' ').every(token => hay.includes(token));
   });
+  const sort = $('#recipeSort')?.value || 'recent';
+  if (sort==='title') out.sort((a,b)=>a.title.localeCompare(b.title));
+  else if (sort==='favorite') out.sort((a,b)=>Number(b.favorite)-Number(a.favorite) || (b.updatedAt||0)-(a.updatedAt||0));
+  else out.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  return out;
+}
+async function recipeCardHtml(r, match=null) {
+  let img = r.imageUrl || '';
+  if (!img && r.thumbnailId) img = await getMediaUrl(r.thumbnailId);
+  if (!img && r.mediaId && (r.mediaType||'').startsWith('image/')) img = await getMediaUrl(r.mediaId);
+  const tags = [r.category, ...(r.tags||[])].filter(Boolean).slice(0,2);
+  return `<article class="recipe-card">
+    ${match ? `<div class="match-badge">${Math.round(match.score*100)}% ${t('match')}</div>`:''}
+    ${r.favorite ? `<button class="favorite-dot" data-fav="${r.id}" aria-label="Remove favorite">★</button>`:''}
+    <button class="card-hit" data-recipe="${r.id}">
+      ${img ? `<img class="recipe-thumb" src="${escapeHtml(img)}" alt="" loading="lazy">` : `<div class="recipe-thumb placeholder">⌑</div>`}
+      <div class="recipe-card-body">
+        <h3>${escapeHtml(r.title)}</h3>
+        <div class="card-meta">
+          <span>${(r.ingredients||[]).length} ${((r.ingredients||[]).length===1?t('ingredientSingular'):t('ingredientPlural'))}</span>
+          <span>·</span><span>${escapeHtml(sourceDisplay(r))}</span>
+          ${match ? `<span>·</span><span>${match.matched}/${match.total} ${t('atHomeLower')}</span>`:''}
+        </div>
+        <div class="card-meta" style="margin-top:7px">${tags.map(t=>`<span class="mini-tag">${escapeHtml(t)}</span>`).join('')}</div>
+      </div>
+    </button>
+  </article>`;
+}
+async function renderRecipes() {
+  const list = filteredRecipes();
+  $('#recipeEmpty').classList.toggle('hidden', recipes.length !== 0);
+  $('#recipeGrid').classList.toggle('hidden', list.length === 0);
+  const chunks = [];
+  for (const r of list) chunks.push(await recipeCardHtml(r));
+  $('#recipeGrid').innerHTML = chunks.join('');
+  bindRecipeCards($('#recipeGrid'));
+}
+function bindRecipeCards(root=document) {
+  $$('[data-recipe]',root).forEach(b => b.onclick = () => openRecipe(b.dataset.recipe));
+  $$('[data-fav]',root).forEach(b => b.onclick = async e => { e.stopPropagation(); await toggleFavorite(b.dataset.fav); });
+}
+async function toggleFavorite(id) {
+  const r=recipes.find(x=>x.id===id); if(!r)return;
+  r.favorite=!r.favorite; r.updatedAt=Date.now();
+  await idbPut('recipes',r); await renderRecipes();
+}
 
-  window.addEventListener("appinstalled", () => {
-    deferredInstallPrompt = null;
-    updateInstallUI();
-    toast("App installed");
+function renderAvailable() {
+  $('#availableChips').innerHTML = state.available.map((x,i)=>`<span class="chip">${escapeHtml(x)}<button data-remove-available="${i}">×</button></span>`).join('');
+  $$('[data-remove-available]').forEach(b=>b.onclick=async()=>{state.available.splice(Number(b.dataset.removeAvailable),1);await saveState();renderAvailable();renderMatches();});
+}
+function allAvailable() {
+  return [...state.available, ...($('#includePantryToggle')?.checked ? state.pantry : [])].filter(Boolean);
+}
+function computeMatch(recipe, available) {
+  const required=(recipe.ingredients||[]).filter(i=>!i.optional && i.name);
+  if (!required.length) return {score:0,matched:0,total:0,missing:[]};
+  const matched = required.filter(i=>fuzzyHas(available,i));
+  return { score: matched.length/required.length, matched:matched.length, total:required.length, missing:required.filter(i=>!fuzzyHas(available,i)) };
+}
+async function renderMatches() {
+  if (!$('#matchGrid')) return;
+  const available=allAvailable();
+  $('#matchEmpty').classList.toggle('hidden', available.length>0);
+  if (!available.length) { $('#matchGrid').innerHTML=''; $('#matchSummary').textContent=''; return; }
+  const matched=recipes.map(r=>({r,m:computeMatch(r,available)})).sort((a,b)=>b.m.score-a.m.score || a.m.total-b.m.total);
+  const chunks=[];
+  for (const {r,m} of matched) chunks.push(await recipeCardHtml(r,m));
+  $('#matchGrid').innerHTML=chunks.join('');
+  $('#matchSummary').textContent = `${available.length} ${available.length===1?t('ingredientSingular'):t('ingredientPlural')} ${t('available')} · ${recipes.length} ${recipes.length===1?t('recipeSingular'):t('recipePlural')} ${t('ranked')}`;
+  bindRecipeCards($('#matchGrid'));
+}
+
+function renderPantry() {
+  $('#pantryChips').innerHTML = state.pantry.map((x,i)=>`<span class="chip">${escapeHtml(x)}<button data-remove-pantry="${i}">×</button></span>`).join('') || `<span class="muted" style="font-size:12px">${escapeHtml(t('nothingSaved'))}</span>`;
+  $$('[data-remove-pantry]').forEach(b=>b.onclick=async()=>{state.pantry.splice(Number(b.dataset.removePantry),1);await saveState();renderPantry();renderMatches();});
+}
+function addUniqueIngredient(list, value) {
+  value = value.trim();
+  if (!value) return false;
+  if (list.some(x=>ingredientSimilarity(x,value)>=.9)) return false;
+  list.push(value); return true;
+}
+
+function mergeShoppingIngredient(ing, sourceRecipeId='', manual=false) {
+  const key = canonicalIngredient(ing.name || ing.raw || '');
+  if (!key) return;
+  const ingUnit=ing.unitCanonical||canonicalUnit(ing.unit||'')||ing.unit||'';
+  const existing = state.shopping.find(x => canonicalIngredient(x.name)===key && (x.unitCanonical||canonicalUnit(x.unit||'')||x.unit||'')===ingUnit && !x.checked);
+  if (existing) {
+    if (Number.isFinite(existing.qty) && Number.isFinite(ing.qty)) existing.qty += ing.qty;
+    else if (!existing.qtyText && ing.qtyText) existing.qtyText = ing.qtyText;
+    existing.sources = [...new Set([...(existing.sources||[]), ...(sourceRecipeId?[sourceRecipeId]:[])])];
+  } else {
+    state.shopping.push({ id:uid('shop'), name:ing.name || ing.raw, qty:Number.isFinite(ing.qty)?ing.qty:null, qtyText:ing.qtyText||'', unit:ing.unit||'', unitCanonical:ingUnit, checked:false, manual, sources:sourceRecipeId?[sourceRecipeId]:[], createdAt:Date.now() });
+  }
+}
+function renderShopping() {
+  if (!$('#shoppingList')) return;
+  const items=[...state.shopping].sort((a,b)=>Number(a.checked)-Number(b.checked)||(a.createdAt||0)-(b.createdAt||0));
+  $('#shoppingEmpty').classList.toggle('hidden', items.length>0);
+  { const n=items.filter(i=>!i.checked).length; $('#shoppingCount').textContent=`${n} ${n===1?t('itemSingular'):t('itemPlural')}`; }
+  const recipeCount=new Set(items.flatMap(i=>i.sources||[])).size;
+  $('#shoppingRecipeCount').textContent=recipeCount?`${t('from')} ${recipeCount} ${recipeCount===1?t('recipeSingular'):t('recipePlural')} ${t('manualItems')}`:'';
+  $('#shoppingList').innerHTML=items.map(item=>{
+    const qty=[item.qtyText || (Number.isFinite(item.qty)?String(Math.round(item.qty*100)/100):''),item.unit].filter(Boolean).join(' ');
+    const sourceNames=(item.sources||[]).map(id=>recipes.find(r=>r.id===id)?.title).filter(Boolean);
+    return `<div class="shopping-item ${item.checked?'checked':''}">
+      <input class="shopping-check" type="checkbox" ${item.checked?'checked':''} data-shop-check="${item.id}" aria-label="Check ${escapeHtml(item.name)}">
+      <div><div class="shopping-name">${escapeHtml(item.name)}</div><div class="shopping-sub">${qty?`<span>${escapeHtml(qty)}</span>`:''}${sourceNames.slice(0,2).map(n=>`<span>· ${escapeHtml(n)}</span>`).join('')}${item.manual?`<span>· ${escapeHtml(t('manualLower'))}</span>`:''}</div></div>
+      <div class="shopping-actions"><button class="home-btn" data-shop-home="${item.id}" title="I have this at home">⌂</button><button data-shop-delete="${item.id}" title="Delete">×</button></div>
+    </div>`;
+  }).join('');
+  $$('[data-shop-check]').forEach(b=>b.onchange=async()=>{const i=state.shopping.find(x=>x.id===b.dataset.shopCheck);if(i)i.checked=b.checked;await saveState();renderShopping();});
+  $$('[data-shop-delete]').forEach(b=>b.onclick=async()=>{state.shopping=state.shopping.filter(x=>x.id!==b.dataset.shopDelete);await saveState();renderShopping();});
+  $$('[data-shop-home]').forEach(b=>b.onclick=async()=>{const i=state.shopping.find(x=>x.id===b.dataset.shopHome);if(!i)return;addUniqueIngredient(state.pantry,i.name);state.shopping=state.shopping.filter(x=>x.id!==i.id);await saveState();renderShopping();renderPantry();renderMatches();toast(`${i.name} ${t('movedToPantry')}`);});
+}
+
+async function openRecipe(id) {
+  const r=recipes.find(x=>x.id===id); if(!r)return;
+  activeRecipeId=id;
+  $('#favoriteRecipeBtn').textContent=r.favorite?'★':'☆';
+  let hero=r.imageUrl||'';
+  if (!hero && r.thumbnailId) hero=await getMediaUrl(r.thumbnailId);
+  if (!hero && r.mediaId && (r.mediaType||'').startsWith('image/')) hero=await getMediaUrl(r.mediaId);
+  let sourceMedia='';
+  if (r.mediaId && ((r.mediaType||'').startsWith('video/') || r.mediaType==='application/pdf')) {
+    const url=await getMediaUrl(r.mediaId);
+    if ((r.mediaType||'').startsWith('video/')) sourceMedia=`<div class="detail-section"><h3>${escapeHtml(t('originalVideo'))}</h3><video class="source-media" controls src="${escapeHtml(url)}"></video></div>`;
+    if (r.mediaType==='application/pdf') sourceMedia=`<div class="detail-section"><h3>${escapeHtml(t('originalPdf'))}</h3><a class="source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(t('openStoredPdf'))}</a></div>`;
+  }
+  $('#recipeDetail').innerHTML=`
+    ${hero?`<img class="recipe-hero" src="${escapeHtml(hero)}" alt="">`:''}
+    <div class="recipe-detail-body">
+      <div class="eyebrow">${escapeHtml(sourceDisplay(r).toUpperCase())}${r.servings?` · ${escapeHtml(r.servings)} ${escapeHtml(t('servingsUpper'))}`:''}</div>
+      <h2>${escapeHtml(r.title)}</h2>
+      <div class="detail-tags">${[r.category,...(r.tags||[])].filter(Boolean).map(t=>`<span class="mini-tag">${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="detail-actions"><button class="primary" id="detailShopBtn">${escapeHtml(t('addToShopping'))}</button><button class="secondary" id="detailPantryMatchBtn">${escapeHtml(t('checkWhatIHave'))}</button></div>
+      <div class="detail-section"><h3>${escapeHtml(t('ingredients'))}</h3><ul class="ingredient-list">${(r.ingredients||[]).map(i=>`<li><span class="ingredient-qty">${escapeHtml(formatQty(i))}</span><span>${escapeHtml(i.name)}${i.optional?` <small class="muted">(${escapeHtml(t('optional'))})</small>`:''}</span></li>`).join('') || `<li class="muted">${escapeHtml(t('noIngredients'))}</li>`}</ul></div>
+      <div class="detail-section"><h3>${escapeHtml(t('steps'))}</h3><ol class="step-list">${(r.steps||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('') || `<li class="muted">${escapeHtml(t('noSteps'))}</li>`}</ol></div>
+      ${r.notes?`<div class="detail-section"><h3>${escapeHtml(t('notes'))}</h3><div class="muted" style="white-space:pre-wrap;line-height:1.5">${escapeHtml(r.notes)}</div></div>`:''}
+      ${sourceMedia}
+      ${r.source?.url?`<div class="detail-section"><h3>${escapeHtml(t('source'))}</h3><a class="source-link" href="${escapeHtml(r.source.url)}" target="_blank" rel="noopener">${escapeHtml(r.source.url)} ↗</a></div>`:''}
+    </div>`;
+  $('#detailShopBtn').onclick=()=>openShoppingPicker(r.id);
+  $('#detailPantryMatchBtn').onclick=()=>{ $('#recipeDialog').close(); state.available=[]; go('cook'); toast(state.language==='fi'?'Lisää mitä sinulla on tai käytä kotivarastoa':state.language==='it'?'Aggiungi ciò che hai o usa la dispensa salvata':'Add what you have, or use your saved pantry'); };
+  $('#recipeDialog').showModal();
+}
+function openShoppingPicker(recipeId) {
+  const r=recipes.find(x=>x.id===recipeId); if(!r)return;
+  pendingShoppingRecipeId=recipeId;
+  $('#shoppingIngredientPicker').innerHTML=(r.ingredients||[]).map((i,idx)=>{
+    const home=fuzzyHas(state.pantry,i);
+    return `<label class="picker-item"><input type="checkbox" data-pick-ingredient="${idx}" ${home?'':'checked'}><span><strong>${escapeHtml(ingredientToLine(i))}</strong>${home?`<span class="at-home-badge">${escapeHtml(t('alreadyAtHome'))}</span>`:''}</span></label>`;
+  }).join('') || `<p class="muted">${escapeHtml(t('noIngredientsAvailable'))}</p>`;
+  $('#shoppingDialog').showModal();
+}
+
+async function saveRecipe(recipe) {
+  recipe.updatedAt=Date.now();
+  if (!recipe.createdAt) recipe.createdAt=Date.now();
+  await idbPut('recipes',recipe);
+  const idx=recipes.findIndex(r=>r.id===recipe.id);
+  if(idx>=0) recipes[idx]=recipe; else recipes.unshift(recipe);
+  recipes.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  renderAll();
+}
+function openEditor(recipe, isNew=false) {
+  editorDraft=structuredClone(recipe);
+  $('#editorHeading').textContent=isNew?t('reviewRecipe'):t('editRecipe');
+  $('#editTitle').value=recipe.title||'';
+  $('#editServings').value=recipe.servings||'';
+  $('#editCategory').value=recipe.category||'';
+  $('#editTags').value=(recipe.tags||[]).join(', ');
+  $('#editIngredients').value=(recipe.ingredients||[]).map(ingredientToLine).join('\n');
+  $('#editSteps').value=(recipe.steps||[]).join('\n');
+  $('#editNotes').value=recipe.notes||'';
+  $('#editSourceUrl').value=recipe.source?.url||'';
+  $('#deleteRecipeBtn').classList.toggle('hidden',isNew);
+  renderEditorPreview(recipe);
+  $('#editorDialog').showModal();
+}
+async function renderEditorPreview(recipe) {
+  const box=$('#editorMediaPreview');
+  box.classList.add('hidden'); box.innerHTML='';
+  let url=recipe.imageUrl||'';
+  let type='image';
+  if (!url && recipe.thumbnailId) url=await getMediaUrl(recipe.thumbnailId);
+  if (!url && recipe.mediaId && (recipe.mediaType||'').startsWith('image/')) url=await getMediaUrl(recipe.mediaId);
+  if (!url && recipe.mediaId && (recipe.mediaType||'').startsWith('video/')) {url=await getMediaUrl(recipe.mediaId);type='video';}
+  if(url){box.innerHTML=type==='video'?`<video controls src="${escapeHtml(url)}"></video>`:`<img src="${escapeHtml(url)}" alt="">`;box.classList.remove('hidden');}
+}
+
+async function parseTextImport() {
+  const text=$('#importText').value.trim();
+  if(!text){toast(t('pasteFirst'));return;}
+  setStatus(t('parsingText'));
+  const recipe=parseRecipeText(text,{type:'text'});
+  setStatus(t('parsedReview'),false);
+  openEditor(recipe,true);
+}
+async function fetchReadableUrl(url) {
+  const target=`https://r.jina.ai/${url}`;
+  const res=await fetch(target,{headers:{'Accept':'text/plain'}});
+  if(!res.ok) throw new Error(`Reader returned ${res.status}`);
+  return await res.text();
+}
+async function parseWebsiteImport() {
+  let url=$('#websiteUrl').value.trim();
+  if(!url){toast(t('pasteLinkFirst'));return;}
+  if(!/^https?:\/\//i.test(url)) url='https://'+url;
+  setStatus(t('readingWebsite'));
+  try {
+    const readable=await fetchReadableUrl(url);
+    const host=new URL(url).hostname.replace(/^www\./,'');
+    const recipe=parseRecipeText(readable,{type:'website',url,label:host});
+    if (/instagram\.com$/i.test(host) || host.includes('instagram.com')) recipe.tags=[...new Set([...(recipe.tags||[]),'Instagram'])];
+    setStatus(t('websiteRead'),false);
+    openEditor(recipe,true);
+  } catch(e) {
+    setStatus('',false);
+    toast(t('linkFailed'));
+    console.error(e);
+  }
+}
+
+async function loadPdfJs() {
+  const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+  return pdfjs;
+}
+async function extractPdf(file) {
+  setStatus(t('loadingPdf'));
+  const pdfjs=await loadPdfJs();
+  const data=await file.arrayBuffer();
+  const doc=await pdfjs.getDocument({data}).promise;
+  let text='';
+  const pages=Math.min(doc.numPages,25);
+  for(let p=1;p<=pages;p++){
+    setStatus(`Reading PDF page ${p} of ${pages}…`);
+    const page=await doc.getPage(p);
+    const content=await page.getTextContent();
+    text += '\n' + content.items.map(x=>x.str).join(' ');
+  }
+  let thumbBlob=null;
+  try {
+    const page=await doc.getPage(1);
+    const viewport=page.getViewport({scale:1.25});
+    const canvas=document.createElement('canvas');
+    canvas.width=viewport.width;canvas.height=viewport.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+    thumbBlob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.82));
+  } catch {}
+  return {text,thumbBlob};
+}
+async function loadTesseract() {
+  if (window.Tesseract) return window.Tesseract;
+  setStatus(t('loadingOcr'));
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
   });
+  return window.Tesseract;
+}
+async function ocrImage(blob, label='image') {
+  const T=await loadTesseract();
+  setStatus(`Reading text from ${label}…`);
+  const result=await T.recognize(blob,'eng+fin+ita',{logger:m=>{if(m.status==='recognizing text')setStatus(`OCR ${Math.round((m.progress||0)*100)}% · ${label}`);}});
+  return result?.data?.text||'';
+}
+async function imageThumbnail(blob, max=1000) {
+  const bitmap=await createImageBitmap(blob);
+  const scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+  return await new Promise(r=>canvas.toBlob(r,'image/jpeg',.84));
+}
+async function seekVideo(video,time) {
+  return new Promise((resolve,reject)=>{
+    const onSeek=()=>{video.removeEventListener('seeked',onSeek);resolve();};
+    video.addEventListener('seeked',onSeek,{once:true});
+    video.currentTime=clamp(time,0,Math.max(0,video.duration-.05));
+    setTimeout(()=>reject(new Error('Video seek timeout')),5000);
+  });
+}
+async function extractVideoFrames(file) {
+  const url=URL.createObjectURL(file);
+  const video=document.createElement('video');
+  video.preload='metadata';video.muted=true;video.playsInline=true;video.src=url;
+  await new Promise((resolve,reject)=>{video.onloadedmetadata=resolve;video.onerror=reject;});
+  const duration=Number.isFinite(video.duration)?video.duration:1;
+  const points=[.04,.2,.4,.6,.8,.96].map(f=>duration*f);
+  const frames=[];
+  for(let idx=0;idx<points.length;idx++){
+    setStatus(`Sampling video frame ${idx+1} of ${points.length}…`);
+    try{await seekVideo(video,points[idx]);}catch{}
+    const maxW=760, scale=Math.min(1,maxW/(video.videoWidth||maxW));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round((video.videoWidth||720)*scale));canvas.height=Math.max(1,Math.round((video.videoHeight||1280)*scale));
+    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.78));
+    if(blob)frames.push(blob);
+  }
+  URL.revokeObjectURL(url);
+  return frames;
+}
+function dedupeOcrText(texts) {
+  const seen=[];
+  for(const text of texts){
+    for(const line of text.split('\n').map(x=>x.trim()).filter(x=>x.length>1)){
+      const n=normalizeText(line);if(!n)continue;
+      if(!seen.some(x=>ingredientSimilarity(x,line)>.9 || normalizeText(x)===n))seen.push(line);
+    }
+  }
+  return seen.join('\n');
+}
+async function processFile(file) {
+  const keep=$('#keepOriginalToggle').checked;
+  const type=file.type||'';
+  const baseSource={filename:file.name,label:file.name};
+  if(type==='application/pdf' || /\.pdf$/i.test(file.name)){
+    const {text,thumbBlob}=await extractPdf(file);
+    let mediaId='',thumbnailId='';
+    if(keep) mediaId=await storeMedia(file,{name:file.name});
+    if(thumbBlob) thumbnailId=await storeMedia(thumbBlob,{name:`${file.name}-thumb.jpg`});
+    const recipe=parseRecipeText(text,{...baseSource,type:'pdf',mediaId,mediaType:'application/pdf',thumbnailId});
+    return recipe;
+  }
+  if(type.startsWith('image/')){
+    const text=await ocrImage(file,file.name||'photo');
+    let mediaId='',thumbnailId='';
+    if(keep) mediaId=await storeMedia(file,{name:file.name});
+    const thumb=await imageThumbnail(file).catch(()=>null);
+    if(thumb) thumbnailId=await storeMedia(thumb,{name:`${file.name}-thumb.jpg`});
+    return parseRecipeText(text,{...baseSource,type:'image',mediaId,mediaType:type,thumbnailId});
+  }
+  if(type.startsWith('video/')){
+    let mediaId='';if(keep)mediaId=await storeMedia(file,{name:file.name});
+    const frames=await extractVideoFrames(file);
+    let thumbnailId='';if(frames[0])thumbnailId=await storeMedia(frames[0],{name:`${file.name}-thumb.jpg`});
+    const texts=[];
+    for(let i=0;i<frames.length;i++){
+      setStatus(`OCR video frame ${i+1} of ${frames.length}…`);
+      try{texts.push(await ocrImage(frames[i],`video frame ${i+1}`));}catch(e){console.warn(e);}
+    }
+    const text=dedupeOcrText(texts);
+    const recipe=parseRecipeText(text,{...baseSource,type:'video',mediaId,mediaType:type,thumbnailId});
+    recipe.tags=[...new Set([...(recipe.tags||[]),'Video'])];
+    if(!recipe.ingredients.length && !recipe.steps.length) recipe.notes=t('noVideoText');
+    return recipe;
+  }
+  if(type==='text/plain'){
+    const text=await file.text();return parseRecipeText(text,{...baseSource,type:'text'});
+  }
+  throw new Error(`Unsupported file type: ${type||file.name}`);
+}
+async function handleFiles(fileList) {
+  const files=[...fileList];if(!files.length)return;
+  if(files.length>1) toast(`${t('importingFirst')}; ${files.length-1} ${state.language==='fi'?'lisää seuraa':state.language==='it'?'altri seguiranno':'more will follow'}`);
+  for(const file of files){
+    try{
+      const recipe=await processFile(file);
+      setStatus(`${file.name} extracted — review before saving`,false);
+      openEditor(recipe,true);
+      if(files.length>1) break;
+    }catch(e){console.error(e);setStatus('',false);toast(`${state.language==='fi'?'Tiedostoa ei voitu tuoda':state.language==='it'?'Impossibile importare':'Could not import'} ${file.name}`);}
+  }
+}
 
-  init();
-})();
+async function handleSharedImport() {
+  const params=new URLSearchParams(location.search);
+  if(params.get('shareError')) toast(t('sharedFailed'));
+  if(params.get('shared')!=='1') return;
+  const shared=await idbGet('shared','latest');
+  if(!shared)return;
+  await idbDelete('shared','latest');
+  go('import');
+  if(shared.files?.length){
+    const files=shared.files.map(x=>new File([x.blob],x.name||'shared-file',{type:x.type||x.blob.type}));
+    await handleFiles(files);
+  } else {
+    const combined=[shared.title,shared.text,shared.url].filter(Boolean).join('\n');
+    if(shared.url && /^https?:\/\//i.test(shared.url)){
+      $('#websiteUrl').value=shared.url;
+      $$('[data-import-type]').find(b=>b.dataset.importType==='website')?.click();
+      await parseWebsiteImport();
+    }else if(combined){
+      $('#importText').value=combined;
+      await parseTextImport();
+    }
+  }
+  history.replaceState({},'',location.pathname+location.hash);
+}
+
+async function exportBackup() {
+  setStatus(t('buildingBackup'));
+  const includeMedia=$('#backupMediaToggle').checked;
+  const payload={version:APP_VERSION,exportedAt:new Date().toISOString(),recipes,state,media:[]};
+  if(includeMedia){
+    const media=await idbGetAll('media');
+    for(let i=0;i<media.length;i++){
+      setStatus(`Encoding media ${i+1} of ${media.length}…`);
+      payload.media.push({id:media[i].id,type:media[i].type,name:media[i].name,createdAt:media[i].createdAt,data:await blobToDataUrl(media[i].blob)});
+    }
+  }
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`recipe-vault-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  setStatus('',false);toast(t('backupExported'));
+}
+function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});}
+async function dataUrlToBlob(dataUrl){const res=await fetch(dataUrl);return await res.blob();}
+async function importBackup(file) {
+  try{
+    setStatus(t('readingBackup'));
+    const data=JSON.parse(await file.text());
+    if(!Array.isArray(data.recipes)) throw new Error('Invalid backup');
+    const replace=await confirmAction(t('restoreBackup'),t('restoreBackupText'),t('restore'));
+    if(!replace){setStatus('',false);return;}
+    await Promise.all(['recipes','media','state'].map(idbClear));
+    for(const r of data.recipes) await idbPut('recipes',r);
+    if(Array.isArray(data.media)) for(const m of data.media){if(!m.data)continue;await idbPut('media',{id:m.id,type:m.type,name:m.name,createdAt:m.createdAt,blob:await dataUrlToBlob(m.data)});}
+    state={...state,...(data.state||{})};await saveState();await loadAll();setStatus('',false);toast(t('backupRestored'));
+  }catch(e){console.error(e);setStatus('',false);toast(t('backupImportFailed'));}
+}
+async function renderStorageInfo(){
+  if(!$('#storageInfo'))return;
+  try{
+    const est=await navigator.storage?.estimate?.();
+    if(est)$('#storageInfo').textContent=`${t('storageUsed')} ${fmtBytes(est.usage||0)} ${t('used')}${est.quota?` ${t('ofAbout')} ${fmtBytes(est.quota)}`:''}. ${recipes.length} ${t('recipesSaved')}`;
+    else $('#storageInfo').textContent=`${recipes.length} ${t('recipesSaved')}`;
+  }catch{$('#storageInfo').textContent=`${recipes.length} ${t('recipesSaved')}`;}
+}
+
+function applyTheme(){
+  let theme=state.theme||'system';
+  if(theme==='system') theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+  document.documentElement.dataset.theme=theme;
+  if($('#themeSelect'))$('#themeSelect').value=state.theme||'system';
+  $('meta[name="theme-color"]').content=theme==='dark'?'#000000':'#f4f2ee';
+}
+function confirmAction(title,text,okLabel='Delete'){
+  $('#confirmTitle').textContent=title;$('#confirmText').textContent=text;$('#confirmOk').textContent=okLabel;$('#confirmDialog').showModal();
+  return new Promise(resolve=>confirmResolver=resolve);
+}
+
+function bindEvents(){
+  $$('[data-nav]').forEach(b=>b.onclick=()=>go(b.dataset.nav));
+  $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+  $('#quickImportBtn').onclick=()=>go('import');
+  $('#recipeSearch').oninput=()=>renderRecipes();
+  $('#recipeSort').onchange=()=>renderRecipes();
+  $('#includePantryToggle').onchange=()=>renderMatches();
+  $('#addAvailableIngredient').onclick=async()=>{const input=$('#availableIngredientInput');if(addUniqueIngredient(state.available,input.value)){input.value='';await saveState();renderAvailable();renderMatches();}else input.value='';};
+  $('#availableIngredientInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#addAvailableIngredient').click();}};
+  $('#pantryAddBtn').onclick=async()=>{const input=$('#pantryInput');if(addUniqueIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
+  $('#pantryInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#pantryAddBtn').click();}};
+
+  $$('[data-import-type]').forEach(b=>b.onclick=()=>{const type=b.dataset.importType;$$('[data-import-type]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-import-panel]').forEach(p=>p.classList.toggle('active',p.dataset.importPanel===type));});
+  $('#parseTextBtn').onclick=parseTextImport;
+  $('#parseWebsiteBtn').onclick=parseWebsiteImport;
+  $('#manualRecipeBtn').onclick=()=>openEditor({id:uid('recipe'),title:'',category:'Recipe',tags:[],servings:'',ingredients:[],steps:[],notes:'',favorite:false,source:{type:'manual',url:'',label:'',filename:''},imageUrl:'',mediaId:'',mediaType:'',thumbnailId:'',createdAt:Date.now(),updatedAt:Date.now()},true);
+  $('#fileInput').onchange=e=>handleFiles(e.target.files);
+  $('#cameraInput').onchange=e=>handleFiles(e.target.files);
+  const dz=$('#dropZone');
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
+  dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+
+  $('#manualShoppingAdd').onclick=async()=>{const i=$('#manualShoppingInput');const name=i.value.trim();if(!name)return;mergeShoppingIngredient({name},'',true);i.value='';await saveState();renderShopping();};
+  $('#manualShoppingInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#manualShoppingAdd').click();}};
+  $('#clearCheckedBtn').onclick=async()=>{state.shopping=state.shopping.filter(i=>!i.checked);await saveState();renderShopping();};
+
+  $$('[data-close-dialog]').forEach(b=>b.onclick=()=>$('#'+b.dataset.closeDialog).close());
+  $('#favoriteRecipeBtn').onclick=async()=>{await toggleFavorite(activeRecipeId);const r=recipes.find(x=>x.id===activeRecipeId);$('#favoriteRecipeBtn').textContent=r?.favorite?'★':'☆';};
+  $('#editRecipeBtn').onclick=()=>{const r=recipes.find(x=>x.id===activeRecipeId);if(r){$('#recipeDialog').close();openEditor(r,false);}};
+  $('#recipeEditor').addEventListener('submit',async e=>{
+    e.preventDefault();if(!editorDraft)return;
+    editorDraft.title=$('#editTitle').value.trim()||'Untitled recipe';
+    editorDraft.servings=$('#editServings').value.trim();
+    editorDraft.category=$('#editCategory').value.trim()||'Recipe';
+    editorDraft.tags=$('#editTags').value.split(',').map(x=>x.trim()).filter(Boolean);
+    editorDraft.ingredients=$('#editIngredients').value.split('\n').map(parseIngredientLine).filter(Boolean);
+    editorDraft.steps=$('#editSteps').value.split('\n').map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean);
+    editorDraft.notes=$('#editNotes').value.trim();
+    editorDraft.source=editorDraft.source||{type:'manual'};editorDraft.source.url=$('#editSourceUrl').value.trim();
+    await saveRecipe(editorDraft);$('#editorDialog').close();setStatus('',false);go('recipes');toast(t('recipeSaved'));
+  });
+  $('#deleteRecipeBtn').onclick=async()=>{
+    if(!editorDraft)return;
+    if(await confirmAction(t('deleteRecipeQ'),`“${editorDraft.title}” ${t('deleteRecipeText')}`,t('delete'))){
+      await deleteRecipeMedia(editorDraft);await idbDelete('recipes',editorDraft.id);recipes=recipes.filter(r=>r.id!==editorDraft.id);state.shopping=state.shopping.map(i=>({...i,sources:(i.sources||[]).filter(id=>id!==editorDraft.id)}));await saveState();$('#editorDialog').close();renderAll();toast(t('recipeDeleted'));
+    }
+  };
+  $('#confirmShoppingAdd').onclick=async()=>{const r=recipes.find(x=>x.id===pendingShoppingRecipeId);if(!r)return;const selected=$$('[data-pick-ingredient]:checked').map(x=>Number(x.dataset.pickIngredient));selected.forEach(idx=>mergeShoppingIngredient(r.ingredients[idx],r.id,false));await saveState();$('#shoppingDialog').close();renderShopping();toast(`${selected.length} ${t('ingredientsAdded')}`);};
+
+  $('#exportBtn').onclick=exportBackup;
+  $('#importBackupInput').onchange=e=>{if(e.target.files[0])importBackup(e.target.files[0]);};
+  $('#themeSelect').onchange=async e=>{state.theme=e.target.value;await saveState();applyTheme();};
+  $('#languageSelect').onchange=async e=>{state.language=e.target.value;await saveState();applyLanguage();renderAll();};
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system')applyTheme();});
+  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],theme:'system',language:state.language||'en',activeRecipeFilter:'All'};recipes=[];await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
+
+  $('#confirmCancel').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(false);confirmResolver=null;};
+  $('#confirmOk').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(true);confirmResolver=null;};
+  $('#confirmDialog').addEventListener('cancel',e=>{e.preventDefault();$('#confirmCancel').click();});
+
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;$('#installBtn').disabled=false;$('#installBtn').textContent=t('installApp');});
+  $('#installBtn').onclick=async()=>{if(!deferredInstallPrompt){toast(t('browserInstall'));return;}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;$('#installBtn').disabled=true;};
+}
+
+async function init(){
+  db=await openDb();
+  bindEvents();
+  await loadAll();
+  const hash=location.hash.replace('#','');if(['cook','import','shopping','settings'].includes(hash))go(hash);else go('recipes');
+  if('serviceWorker' in navigator){try{await navigator.serviceWorker.register('./sw.js');}catch(e){console.warn('SW registration failed',e);}}
+  if(matchMedia('(display-mode: standalone)').matches) $('#installBtn').textContent=t('installed');
+  await handleSharedImport();
+}
+
+init().catch(err=>{console.error(err);toast(t('appStartFailed'));});
