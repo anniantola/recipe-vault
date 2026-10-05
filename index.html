@@ -13,7 +13,7 @@
   <link rel="manifest" href="./manifest-v13.webmanifest">
   <link rel="icon" href="./memrisys-icon-v13-192.png">
   <link rel="apple-touch-icon" href="./memrisys-icon-v13-180.png">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles-v20.css">
 </head>
 <body>
   <div class="app-shell">
@@ -316,13 +316,17 @@
         <button id="photoViewerNext" class="photo-viewer-nav" type="button" aria-label="Next photo">›</button>
       </div>
       <div id="photoViewerMeta" class="photo-viewer-meta">
-        <div class="photo-viewer-field">
-          <label for="photoViewerTitle">Photo title</label>
-          <input id="photoViewerTitle" type="text" maxlength="140" placeholder="Add a photo title…" autocomplete="off">
+        <div class="photo-viewer-meta-head">
+          <strong>Photo details</strong>
+          <span id="photoViewerOwner" class="photo-viewer-owner"></span>
         </div>
         <div class="photo-viewer-field">
-          <label for="photoViewerNote">Photo notes</label>
-          <textarea id="photoViewerNote" rows="3" maxlength="2000" placeholder="Add notes about this photo…" spellcheck="true"></textarea>
+          <label for="photoViewerTitle">Title</label>
+          <input id="photoViewerTitle" type="text" maxlength="140" placeholder="Add a title for this photo…" autocomplete="off">
+        </div>
+        <div class="photo-viewer-field">
+          <label for="photoViewerNote">Notes</label>
+          <textarea id="photoViewerNote" rows="3" maxlength="2000" placeholder="Write notes about this photo…" spellcheck="true"></textarea>
         </div>
         <div id="photoViewerSaveStatus" class="photo-viewer-save-status">Saved automatically</div>
       </div>
@@ -330,6 +334,6 @@
   </div>
 
   <script src="./data.js"></script>
-  <script src="./app.js"></script>
+  <script src="./app-v20.js"></script>
 </body>
 </html>

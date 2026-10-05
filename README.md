@@ -1,27 +1,36 @@
-# MEMRISYS 2026 — per-photo titles and notes
+# MEMRISYS 2026 — photo details fix v20
 
-Every photo now supports its own editable metadata, whether it is attached to a talk/poster or still Unclassified.
+This version makes the per-photo editing unmistakable and also bypasses the old cached app assets.
 
-## Photo viewer
-Open any photo and you can edit:
-- **Photo title**
-- **Photo notes**
+## What changed
+Open **any** photo, including one already assigned to a talk or poster. Below the image/arrows there is now a visible **Photo details** panel containing:
 
-Both fields autosave to that specific image.
+- **Title**
+- **Notes**
+- the presentation/poster the photo is attached to
+- autosave status
 
-## Gallery
-Custom photo titles and short photo-note previews appear under thumbnails when present. Presentation grouping is unchanged.
+The fields are available for classified and Unclassified photos alike.
 
-## PPTX export
-Photos remain on the correct topic-specific slides. A custom photo title is used as the photo caption, and photo notes are included beneath the corresponding image.
+The Gallery still shows saved custom titles and short note previews under thumbnails.
 
-Service-worker cache: v19.
+The PPTX export keeps assigned photos under the correct presentation and includes each photo's custom title/notes.
+
+## Cache fix
+This release uses fresh asset URLs:
+- `app-v20.js`
+- `styles-v20.css`
+- `service-worker-v20.js`
+
+That avoids Android Chrome continuing to serve the earlier JavaScript/CSS files under the old filenames.
 
 ## Deployment
 Replace:
 - `index.html`
-- `app.js`
-- `styles.css`
-- `service-worker.js`
 
-`README.md` is optional.
+Add:
+- `app-v20.js`
+- `styles-v20.css`
+- `service-worker-v20.js`
+
+The old `app.js`, `styles.css`, and `service-worker.js` may remain in the repo; v20 no longer references them.
