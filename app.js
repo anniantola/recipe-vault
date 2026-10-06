@@ -1,6 +1,6 @@
 const DB_NAME = 'recipe-vault-db';
 const DB_VERSION = 1;
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -69,7 +69,7 @@ const SYNONYMS = [
 
 const CATEGORY_RULES = [
   ['Dessert', ['cake','cookie','cookies','brownie','brownies','dessert','pudding','tart','cheesecake','ice cream','kakku','keksit','jälkiruoka','jalkiruoka','torta','biscotti','dolce','dessert']],
-  ['Baking', ['bread','bun','buns','dough','bake','baked','muffin','muffins','scone','scones','leipä','leipa','pulla','taikina','paista','pane','impasto','forno']],
+  ['Baking', ['panettone','bread','bun','buns','dough','bake','baked','muffin','muffins','scone','scones','leipä','leipa','pulla','taikina','paista','pane','impasto','forno']],
   ['Breakfast', ['breakfast','oatmeal','porridge','pancake','pancakes','omelette','omelet','granola','aamiainen','puuro','pannukakku','lettu','colazione','porridge','pancake','frittata']],
   ['Soup', ['soup','broth','bisque','stew','keitto','liemi','zuppa','brodo','minestra']],
   ['Pasta', ['pasta','spaghetti','penne','tagliatelle','linguine','macaroni','lasagna','makaroni','lasagne']],
@@ -86,7 +86,7 @@ const TAG_RULES = [
   ['Asian', ['soy sauce','sesame oil','miso','gochujang','rice vinegar','noodles','soijakastike','seesamiöljy']],
   ['Vegetarian', ['vegetarian','kasvis','vegetariano','vegetariana']],
   ['Vegan', ['vegan','vegaaninen','vegano','vegana']],
-  ['Quick', ['15 minute','20 minute','30 minute','quick','easy','15 min','20 min','30 min','nopea','helppo','veloce','facile']],
+  ['Quick', ['quick','easy','nopea','helppo','veloce','facile']],
   ['High protein', ['high protein','protein-rich','protein rich','proteiinipitoinen','alto contenuto proteico']]
 ];
 
@@ -97,7 +97,7 @@ const HEADING_SETS = {
   nutrition: new Set(['nutrition','nutrition facts','nutritional information','nutritional estimate','nutritional estimate per serving','ravintoarvot','ravintosisalto','ravintosisältö','valori nutrizionali','informazioni nutrizionali']),
   stop: new Set(['related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
 };
-const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content|cook mode.*|find more recipes at\b.*|scan the qr code\b.*|voit merkata työvaiheen.*|you can mark the step.*|puoi segnare.*)$/i;
+const BOILERPLATE_RE = /^(jump to recipe|print recipe|print|pin|review|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content|cook mode.*|tried this recipe.*|give it a star rating.*|find more recipes at\b.*|scan the qr code\b.*|voit merkata työvaiheen.*|you can mark the step.*|puoi segnare.*)$/i;
 const EXTRA_INFO_RE = /\b(prep time|cook time|total time|rest time|storage|store|substitut|tip|note|serve with|make ahead|freez|prep|valmistusaika|kypsennysaika|paistoaika|kokonaisaika|sailytys|säilytys|vinkki|huom|tarjoile|korvaa|pakastus|tempo di preparazione|tempo di cottura|tempo totale|riposo|conserva|conservazione|consiglio|sostitu|servire con)\b/i;
 
 let db;
@@ -509,6 +509,7 @@ function parseIngredientLine(line) {
   const optional=/\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw);
   name=cleanIngredientName(name)
     .replace(/\s*\((?:optional|halutessasi|valinnainen|facoltativ[oa])\)\s*$/i,'')
+    .replace(/\s+(?:optional|halutessasi|valinnainen|facoltativ[oa])\s*$/i,'')
     .trim();
   const range = qtyText.match(/^(\d+(?:[.,]\d+)?)\s*[-–—]\s*(\d+(?:[.,]\d+)?)$/);
   let qty = range ? null : parseNumber(qtyText);
@@ -949,6 +950,166 @@ function usefulNutritionFromSections(lines) {
   if(!values.length)return [];
   return ['Nutrition',values.join(' ').replace(/\s*\|\s*/g,' | ').replace(/\s+/g,' ').trim()];
 }
+
+function webRawLines(rawText='') {
+  return String(rawText||'').replace(/\r/g,'').split('\n').map(x=>x.trim()).filter(Boolean);
+}
+function webHeading(raw='') {
+  const m=String(raw||'').match(/^\s*(#{1,6})\s+(.+?)\s*$/);
+  if(!m)return null;
+  return {level:m[1].length,text:cleanInlineSpacing(stripMarkdown(m[2]))};
+}
+function cleanWebCardLine(raw='') {
+  return cleanInlineSpacing(stripMarkdown(String(raw||''))
+    .replace(/^\s*#{1,6}\s*/, '')
+    .replace(/^\s*[-*•]\s+/, '')
+    .replace(/^\[Input(?::[^\]]*)?\]\s*/i,''));
+}
+function isWebBullet(raw='') { return /^\s*[-*•]\s+/.test(String(raw||'')); }
+function nextWebHeadingIndex(rawLines,start,limit=Infinity) {
+  for(let i=start;i<Math.min(rawLines.length,limit);i++) if(webHeading(rawLines[i])) return i;
+  return Math.min(rawLines.length,limit);
+}
+function findRecipeCardTitle(rawLines, ingredientIndex) {
+  for(let i=ingredientIndex-1;i>=Math.max(0,ingredientIndex-45);i--){
+    const h=webHeading(rawLines[i]);
+    if(!h)continue;
+    const type=headingType(h.text);
+    if(type)continue;
+    if(h.text.length<3||h.text.length>120)continue;
+    if(/^(table of contents|why you|substitutions|variations|equipment|storage|serving suggestions|tips|faq)/i.test(h.text))continue;
+    return {index:i,title:h.text,level:h.level};
+  }
+  const cleaned=rawLines.slice(Math.max(0,ingredientIndex-25),ingredientIndex).map(cleanWebCardLine).filter(Boolean);
+  const pick=findBestTitle(cleaned);
+  return pick?{index:Math.max(0,ingredientIndex-25)+pick.i,title:pick.l,level:6}:null;
+}
+function webRecipeCardCandidates(rawText='') {
+  const rawLines=webRawLines(rawText);
+  const candidates=[];
+  for(let i=0;i<rawLines.length;i++){
+    const ingHeading=webHeading(rawLines[i]);
+    if(!ingHeading || headingType(ingHeading.text)!=='ingredients')continue;
+    let stepIndex=-1;
+    for(let j=i+1;j<Math.min(rawLines.length,i+100);j++){
+      const h=webHeading(rawLines[j]);
+      if(h && headingType(h.text)==='steps'){stepIndex=j;break;}
+      if(h && h.level<=ingHeading.level && j>i+3)break;
+    }
+    if(stepIndex<0)continue;
+    const title=findRecipeCardTitle(rawLines,i);
+    const ingredientRegion=rawLines.slice(i+1,stepIndex);
+    const plausible=ingredientRegion.map(cleanWebCardLine).filter(x=>x&&!BOILERPLATE_RE.test(x)&&looksLikeIngredient(x)).length;
+    const bullets=ingredientRegion.filter(isWebBullet).length;
+    const stepEnd=nextWebHeadingIndex(rawLines,stepIndex+1,Math.min(rawLines.length,stepIndex+100));
+    const stepRegion=rawLines.slice(stepIndex+1,stepEnd);
+    const stepBullets=stepRegion.filter(isWebBullet).length;
+    const stepLike=stepRegion.map(cleanWebCardLine).filter(looksLikeStep).length;
+    const metaText=rawLines.slice(title?.index??Math.max(0,i-20),i).map(cleanWebCardLine).join('\n');
+    const facts=extractRecipeFacts(metaText,{});
+    const servings=extractServings(metaText.split('\n'),metaText,{});
+    const factCount=[facts.prepTime,facts.cookTime,facts.restTime,facts.totalTime,facts.author,servings].filter(Boolean).length;
+    const score=plausible*12+Math.min(bullets,25)*2+Math.max(stepBullets,stepLike)*5+factCount*6+(title&&/recipe|resepti|ricetta/i.test(title.title)?8:0)+(i/rawLines.length);
+    candidates.push({rawLines,ingredientIndex:i,stepIndex,stepEnd,title,score,plausible,bullets});
+  }
+  return candidates.sort((a,b)=>b.score-a.score);
+}
+function parseStructuredWebsiteRecipe(rawText='',source={}) {
+  const candidate=webRecipeCardCandidates(rawText)[0];
+  if(!candidate || candidate.plausible<3)return null;
+  const {rawLines,ingredientIndex,stepIndex,title}=candidate;
+  const recipeTitle=cleanInlineSpacing(source.title||title?.title||'Untitled recipe');
+  const metaStart=title?.index??Math.max(0,ingredientIndex-20);
+  const metadataRaw=rawLines.slice(metaStart+1,ingredientIndex).join('\n');
+  const metadataClean=rawLines.slice(metaStart+1,ingredientIndex).map(cleanWebCardLine).filter(Boolean).join('\n');
+  const facts=extractRecipeFacts(metadataClean,source);
+  const servings=extractServings(metadataClean.split('\n'),metadataClean,source);
+
+  const ingredients=[];
+  for(const raw of rawLines.slice(ingredientIndex+1,stepIndex)){
+    const line=cleanWebCardLine(raw);
+    if(!line||BOILERPLATE_RE.test(line)||isMetadataLine(line))continue;
+    if(!isWebBullet(raw) && !looksLikeIngredient(line) && !looksLikeIngredientGroup(line))continue;
+    const parsed=parseIngredientLine(line);
+    if(parsed && (parsed.kind==='group'||line.length<240))ingredients.push(parsed);
+  }
+
+  let stepEnd=rawLines.length;
+  let noteIndex=-1, nutritionIndex=-1;
+  for(let i=stepIndex+1;i<rawLines.length;i++){
+    const h=webHeading(rawLines[i]); if(!h)continue;
+    const type=headingType(h.text);
+    if(type==='notes'){noteIndex=i;stepEnd=i;break;}
+    if(type==='nutrition'){nutritionIndex=i;stepEnd=i;break;}
+    if(h.level<=3){stepEnd=i;break;}
+  }
+  const stepEntries=rawLines.slice(stepIndex+1,stepEnd).map((text,i)=>({i,text:cleanRecipeLine(text)}));
+  let steps=joinStepContinuations(stepEntries);
+  // In printable cards every bullet is one instruction; preserve that grouping exactly.
+  const directBullets=rawLines.slice(stepIndex+1,stepEnd).filter(isWebBullet).map(cleanWebCardLine).filter(x=>x&&!BOILERPLATE_RE.test(x));
+  if(directBullets.length>=2)steps=directBullets.map(cleanStepLine);
+
+  const notes=[];
+  const descriptionLines=rawLines.slice(metaStart+1,ingredientIndex).map(cleanWebCardLine).filter(x=>{
+    if(!x||BOILERPLATE_RE.test(x)||isMetadataLine(x))return false;
+    if(/^\d(?:\.\d+)?\s+from\s+\d+\s+votes?/i.test(x))return false;
+    if(/^(author|prep|cook|rest|total|servings?|yield)\b/i.test(x))return false;
+    return x.length>=20 && x.length<400;
+  });
+  if(descriptionLines.length)notes.push(descriptionLines[0]);
+
+  if(noteIndex>=0){
+    let end=rawLines.length;
+    for(let i=noteIndex+1;i<rawLines.length;i++){
+      const h=webHeading(rawLines[i]); if(!h)continue;
+      if(headingType(h.text)==='nutrition'){nutritionIndex=i;end=i;break;}
+      if(h.level<=3){end=i;break;}
+    }
+    const noteEntries=rawLines.slice(noteIndex+1,end).map((text,i)=>({i,text:cleanRecipeLine(text)}));
+    const parsedNotes=joinNoteContinuations(noteEntries).filter(x=>x&&!BOILERPLATE_RE.test(x));
+    if(parsedNotes.length){if(notes.length)notes.push('');notes.push(...parsedNotes);}
+  }
+  if(nutritionIndex<0){
+    for(let i=stepEnd;i<rawLines.length;i++){const h=webHeading(rawLines[i]);if(h&&headingType(h.text)==='nutrition'){nutritionIndex=i;break;}}
+  }
+  if(nutritionIndex>=0){
+    let end=rawLines.length;
+    for(let i=nutritionIndex+1;i<rawLines.length;i++){
+      const h=webHeading(rawLines[i]); if(h && h.level<=3){end=i;break;}
+    }
+    const nutrition=rawLines.slice(nutritionIndex+1,end).map(cleanWebCardLine).filter(x=>x&&!BOILERPLATE_RE.test(x)).join(' ');
+    if(nutrition){if(notes.length)notes.push('');notes.push('Nutrition',cleanInlineSpacing(nutrition));}
+  }
+
+  if(!facts.temperature)facts.temperature=extractTemperatures(rawLines.slice(stepIndex+1,stepEnd).map(cleanWebCardLine).join('\n'));
+  const body=[recipeTitle,...ingredients.map(ingredientToLine),...steps].join('\n');
+  let category=inferCategory(body);
+  if(/\bpanettone\b/i.test(recipeTitle))category='Baking';
+  const tags=inferTags(body);
+  const totalMins=parseDurationMinutes(facts.totalTime||'');
+  if(Number.isFinite(totalMins)&&totalMins>45){const q=tags.indexOf('Quick');if(q>=0)tags.splice(q,1);}
+  return cleanRecipeRecord({
+    id:uid('recipe'),title:recipeTitle.slice(0,160),category,tags,servings,
+    prepTime:facts.prepTime||'',cookTime:facts.cookTime||'',restTime:facts.restTime||'',totalTime:facts.totalTime||'',temperature:facts.temperature||'',author:facts.author||'',
+    ingredients,steps:[...new Set(steps)].slice(0,80),notes:notes.join('\n').trim(),favorite:false,
+    source:{type:'website',url:source.url||'',label:source.label||'',filename:''},
+    imageUrl:source.imageUrl||extractFirstImageUrl(rawText)||'',mediaId:'',mediaType:'',thumbnailId:'',createdAt:Date.now(),updatedAt:Date.now()
+  });
+}
+function parseDurationMinutes(value='') {
+  const s=normalizeText(value);
+  if(!s)return null;
+  let total=0,found=false,m;
+  const hour=/(\d+(?:[.,]\d+)?)\s*(?:hours?|hrs?|h|tuntia?|tunti|ore?)/i.exec(s);
+  if(hour){total+=Number(hour[1].replace(',','.'))*60;found=true;}
+  const minute=/(\d+(?:[.,]\d+)?)\s*(?:minutes?|mins?|min|minuuttia?|minuti?)/i.exec(s);
+  if(minute){total+=Number(minute[1].replace(',','.'));found=true;}
+  return found?total:null;
+}
+function parseWebsiteRecipeText(rawText='',source={}) {
+  return parseStructuredWebsiteRecipe(rawText,source)||parseRecipeText(rawText,source);
+}
+
 function parseRecipeText(rawText, source = {}) {
   const imageUrl = source.imageUrl || extractFirstImageUrl(rawText);
   const lines = paragraphAwareLines(rawText).filter(l=>l && !BOILERPLATE_RE.test(l));
@@ -1420,9 +1581,28 @@ async function parseTextImport() {
 }
 async function fetchReadableUrl(url) {
   const target=`https://r.jina.ai/${url}`;
-  const res=await fetch(target,{headers:{'Accept':'text/plain'}});
-  if(!res.ok) throw new Error(`Reader returned ${res.status}`);
-  return await res.text();
+  let lastError=null;
+  // JSON mode carries the cleaned Markdown plus useful page metadata and is more stable
+  // across printable recipe-card pages. Fall back to plain Markdown if needed.
+  try {
+    const res=await fetch(target,{headers:{'Accept':'application/json'},cache:'no-store'});
+    if(!res.ok) throw new Error(`Reader JSON returned ${res.status}`);
+    const payload=await res.json();
+    const data=payload?.data||payload||{};
+    const text=String(data.content||data.markdown||data.text||'').trim();
+    if(text.length<40) throw new Error('Reader JSON did not contain readable page content');
+    const images=Array.isArray(data.images)?data.images:[];
+    const imageUrl=String(data.image||data.imageUrl||data.thumbnail||images[0]?.url||images[0]||'');
+    return {text,title:cleanInlineSpacing(data.title||''),imageUrl};
+  } catch(e) { lastError=e; }
+  try {
+    const res=await fetch(target,{headers:{'Accept':'text/plain'},cache:'no-store'});
+    if(!res.ok) throw new Error(`Reader text returned ${res.status}`);
+    const text=(await res.text()).trim();
+    if(text.length<40) throw new Error('Reader returned an empty page');
+    return {text,title:'',imageUrl:''};
+  } catch(e) { lastError=e; }
+  throw lastError||new Error('Could not read website');
 }
 async function parseWebsiteImport() {
   let url=$('#websiteUrl').value.trim();
@@ -1432,14 +1612,16 @@ async function parseWebsiteImport() {
   try {
     const readable=await fetchReadableUrl(url);
     const host=new URL(url).hostname.replace(/^www\./,'');
-    const recipe=parseRecipeText(readable,{type:'website',url,label:host});
+    const recipe=parseWebsiteRecipeText(readable.text,{type:'website',url,label:host,imageUrl:readable.imageUrl});
+    if ((!recipe.title || recipe.title==='Untitled recipe') && readable.title) recipe.title=readable.title;
+    if (!recipe.ingredients?.length || !recipe.steps?.length) throw new Error(`Recipe card incomplete: ${recipe.ingredients?.length||0} ingredients, ${recipe.steps?.length||0} steps`);
     if (/instagram\.com$/i.test(host) || host.includes('instagram.com')) recipe.tags=[...new Set([...(recipe.tags||[]),'Instagram'])];
     setStatus(t('websiteRead'),false);
     openEditor(recipe,true);
   } catch(e) {
     setStatus('',false);
     toast(t('linkFailed'));
-    console.error(e);
+    console.error('Website import failed',e);
   }
 }
 
@@ -1852,7 +2034,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=11',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=13',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
