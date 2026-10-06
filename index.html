@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=8" />
+  <link rel="manifest" href="manifest.webmanifest?v=9" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <header class="app-header">
@@ -32,7 +32,11 @@
           <div class="eyebrow" data-i18n="yourCollection">YOUR COLLECTION</div>
           <h2 data-i18n="recipeLibrary">Recipe library</h2>
         </div>
-<div class="library-order" data-i18n="newestFirst">Newest added first</div>
+<select id="recipeSort" class="compact-select" aria-label="Sort recipes">
+          <option value="recent" data-i18n="newest">Newest</option>
+          <option value="title" data-i18n="az">A–Z</option>
+          <option value="favorite" data-i18n="favorites">Favorites</option>
+        </select>
       </div>
       <div id="recipeGrid" class="recipe-grid"></div>
       <div id="recipeEmpty" class="empty-card hidden">
@@ -286,6 +290,10 @@
       </div>
       <div class="editor-body">
         <div id="editorMediaPreview" class="editor-media-preview hidden"></div>
+        <div class="editor-photo-actions">
+          <button type="button" id="changeRecipePhotoBtn" class="secondary wide" data-i18n="changePhoto">Change photo</button>
+          <input id="recipePhotoInput" class="hidden" type="file" accept="image/*" />
+        </div>
         <label><span data-i18n="title">Title</span><input id="editTitle" required /></label>
         <div class="two-col">
           <label><span data-i18n="servings">Servings</span><input id="editServings" placeholder="e.g. 4" data-i18n-placeholder="servingsPlaceholder" /></label>
@@ -301,6 +309,21 @@
         </div>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="cropDialog" class="modal crop-modal">
+    <div class="modal-shell crop-shell">
+      <div class="modal-top sticky">
+        <button type="button" id="cropCancelBtn" class="secondary small" data-i18n="cancel">Cancel</button>
+        <strong data-i18n="cropPhoto">Crop photo</strong>
+        <button type="button" id="cropSaveBtn" class="primary small" data-i18n="saveCrop">Use crop</button>
+      </div>
+      <div class="crop-body">
+        <p class="muted crop-help" data-i18n="cropHelp">Drag the image to position it and use the slider to zoom.</p>
+        <canvas id="cropCanvas" width="1200" height="900"></canvas>
+        <input id="cropZoom" class="crop-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom" />
+      </div>
+    </div>
   </dialog>
 
   <dialog id="shoppingDialog" class="modal shopping-modal">
@@ -327,6 +350,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>
