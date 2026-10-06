@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=9" />
+  <link rel="manifest" href="manifest.webmanifest?v=10" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <header class="app-header">
@@ -24,7 +24,7 @@
     <section class="page active" data-page="recipes">
       <div class="search-wrap">
         <span class="search-icon">⌕</span>
-        <input id="recipeSearch" type="search" placeholder="Search recipes, ingredients, tags…" data-i18n-placeholder="searchRecipes" autocomplete="off" />
+        <input id="recipeSearch" autocomplete="off" type="search" placeholder="Search recipes, ingredients, tags…" data-i18n-placeholder="searchRecipes" autocomplete="off" />
       </div>
       <div class="filter-row" id="recipeFilters"></div>
       <div class="section-row">
@@ -350,6 +350,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

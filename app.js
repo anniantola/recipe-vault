@@ -117,6 +117,7 @@ let editorDraft = null;
 let deferredInstallPrompt = null;
 let pendingShoppingRecipeId = null;
 let confirmResolver = null;
+let recipeRenderGeneration = 0;
 
 const I18N = {
   en: {
@@ -261,7 +262,6 @@ async function loadAll() {
   if (!['metric','us'].includes(state.measurementSystem)) state.measurementSystem = 'metric';
   applyTheme();
   applyLanguage();
-  renderAll();
 }
 async function saveState() {
   if (['en','fi','it'].includes(state.language)) localStorage.setItem('recipe-vault-language', state.language);
@@ -1032,13 +1032,38 @@ async function recipeCardHtml(r, match=null) {
   </article>`;
 }
 async function renderRecipes() {
+  const generation = ++recipeRenderGeneration;
   const list = filteredRecipes();
-  $('#recipeEmpty').classList.toggle('hidden', recipes.length !== 0);
-  $('#recipeGrid').classList.toggle('hidden', list.length === 0);
-  const chunks = [];
-  for (const r of list) chunks.push(await recipeCardHtml(r));
-  $('#recipeGrid').innerHTML = chunks.join('');
-  bindRecipeCards($('#recipeGrid'));
+  const grid = $('#recipeGrid');
+  const empty = $('#recipeEmpty');
+
+  // Never leave both the grid and empty-state hidden: that was the source of the
+  // apparently empty library on a cold/reloaded PWA start.
+  if (recipes.length === 0) {
+    empty.classList.remove('hidden');
+    grid.classList.add('hidden');
+    grid.innerHTML = '';
+    return;
+  }
+
+  empty.classList.add('hidden');
+  grid.classList.remove('hidden');
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="library-no-results">${escapeHtml(t('noRecipesYet'))}</div>`;
+    return;
+  }
+
+  // Give immediate visual feedback while media-backed cards are resolved from
+  // IndexedDB, instead of showing a blank grid until every card is complete.
+  grid.setAttribute('aria-busy','true');
+  grid.innerHTML = list.map(()=>'<article class="recipe-card recipe-card-loading" aria-hidden="true"><div class="recipe-thumb placeholder"></div><div class="recipe-card-body"><div class="skeleton-line wide"></div><div class="skeleton-line"></div></div></article>').join('');
+
+  const chunks = await Promise.all(list.map(r => recipeCardHtml(r)));
+  if (generation !== recipeRenderGeneration) return; // ignore stale async renders
+  grid.innerHTML = chunks.join('');
+  grid.removeAttribute('aria-busy');
+  bindRecipeCards(grid);
 }
 function bindRecipeCards(root=document) {
   $$('[data-recipe]',root).forEach(b => b.onclick = () => openRecipe(b.dataset.recipe));
@@ -1679,8 +1704,12 @@ function bindEvents(){
 
 async function init(){
   db=await openDb();
-  bindEvents();
+  // Load persistent state first. Event controls must not initialize themselves
+  // from the default state and then race the saved state during the first render.
   await loadAll();
+  bindEvents();
+  if ($('#recipeSearch')) $('#recipeSearch').value = '';
+  await renderAll();
   const hash=location.hash.replace('#','');if(['cook','import','shopping','settings'].includes(hash))go(hash);else go('recipes');
   if('serviceWorker' in navigator){
     try{
@@ -1690,7 +1719,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=8',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=10',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
