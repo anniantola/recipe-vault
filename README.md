@@ -18,3 +18,7 @@ Upload the app files to the repository root. Add the deployment workflow separat
 
 ## Measurements
 Recipe amounts can be displayed in Metric or US customary units. Conversions are display-only; the original imported quantities remain stored unchanged.
+
+
+## PDF import v7
+PDF text is rebuilt from page coordinates before parsing, so headings, ingredients, wrapped instructions, notes and nutrition stay in visual reading order instead of being flattened into a single line. Recipe-export metadata and source URLs are also preserved when available.

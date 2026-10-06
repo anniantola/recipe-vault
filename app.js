@@ -1,6 +1,6 @@
 const DB_NAME = 'recipe-vault-db';
 const DB_VERSION = 1;
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -94,9 +94,10 @@ const HEADING_SETS = {
   ingredients: new Set(['ingredients','ingredient','what youll need','ainekset','ainesosat','raaka aineet','ingredienti','occorrente']),
   steps: new Set(['instructions','instruction','directions','direction','method','steps','step','preparation','ohje','ohjeet','valmistus','valmistusohje','valmistusohjeet','teko ohje','istruzioni','procedimento','preparazione','metodo']),
   notes: new Set(['notes','note','tips','tip','cook s notes','huom','huomio','huomioita','vinkit','vinkki','lisatiedot','lisatieto','note dello chef','consigli','consiglio','suggerimenti']),
-  stop: new Set(['nutrition','nutrition facts','nutritional information','nutritional estimate','nutritional estimate per serving','ravintoarvot','ravintosisalto','valori nutrizionali','informazioni nutrizionali','related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
+  nutrition: new Set(['nutrition','nutrition facts','nutritional information','nutritional estimate','nutritional estimate per serving','ravintoarvot','ravintosisalto','ravintosisältö','valori nutrizionali','informazioni nutrizionali']),
+  stop: new Set(['related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
 };
-const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content|cook mode.*|voit merkata työvaiheen.*|you can mark the step.*|puoi segnare.*)$/i;
+const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content|cook mode.*|find more recipes at\b.*|scan the qr code\b.*|voit merkata työvaiheen.*|you can mark the step.*|puoi segnare.*)$/i;
 const EXTRA_INFO_RE = /\b(prep time|cook time|total time|rest time|storage|store|substitut|tip|note|serve with|make ahead|freez|prep|valmistusaika|kypsennysaika|paistoaika|kokonaisaika|sailytys|säilytys|vinkki|huom|tarjoile|korvaa|pakastus|tempo di preparazione|tempo di cottura|tempo totale|riposo|conserva|conservazione|consiglio|sostitu|servire con)\b/i;
 
 let db;
@@ -363,7 +364,14 @@ function parseNumber(raw='') {
   return Number.isFinite(n) ? n : null;
 }
 function cleanQty(raw='') {
-  return raw.replace(/½/g,' 1/2').replace(/¼/g,' 1/4').replace(/¾/g,' 3/4').replace(/⅓/g,' 1/3').replace(/⅔/g,' 2/3').replace(/⅛/g,' 1/8').trim();
+  return String(raw)
+    .replace(/½/g,' 1/2').replace(/¼/g,' 1/4').replace(/¾/g,' 3/4')
+    .replace(/⅓/g,' 1/3').replace(/⅔/g,' 2/3')
+    .replace(/⅛/g,' 1/8').replace(/⅜/g,' 3/8').replace(/⅝/g,' 5/8').replace(/⅞/g,' 7/8')
+    .replace(/(\d\/\d)(?=[\p{L}])/gu,'$1 ')
+    .replace(/(\d)(?=(?:kg|mg|g|ml|cl|dl|l|oz|lb|cup|cups|tbsp|tsp)\b)/gi,'$1 ')
+    .replace(/\s+/g,' ')
+    .trim();
 }
 function canonicalUnit(raw='') {
   const n=normalizeText(String(raw).replace(/\.$/,''));
@@ -388,6 +396,22 @@ function repairIngredientOcr(raw='') {
     .replace(/^(\d)\s*(rkl|tl|prk|kpl|ruukku)\b/i,'$1 $2')
     .replace(/\s+/g,' ').trim();
 }
+function cleanIngredientName(name='') {
+  let out=String(name)
+    .replace(/\(\(\s*/g,'(').replace(/\s*\)\)/g,')')
+    .replace(/\](?=\))/g,'').replace(/\[\s*\)/g,')').replace(/\(\s*\]/g,'(')
+    .replace(/(\d)\s*mls?\b/gi,'$1 ml')
+    .replace(/(\d)\s*(?:grams?|grammes?|gms?)\b/gi,'$1 g')
+    .replace(/\b1\s+sticks\b/gi,'1 stick')
+    .replace(/(\d)\s*x\s*(\d)/gi,'$1 × $2')
+    .replace(/\s*\/\s*/g,' / ')
+    .replace(/\)\s+([\p{L}])/gu,'), $1')
+    .replace(/\s+/g,' ')
+    .trim();
+  const opens=(out.match(/\(/g)||[]).length, closes=(out.match(/\)/g)||[]).length;
+  if(closes>opens && /\)$/.test(out)) out=out.replace(/\)+$/,'');
+  return out.trim();
+}
 function parseIngredientLine(line) {
   let raw = String(line || '').replace(/^[-•*–—]\s*/, '').replace(/^\[Input\]\s*/i,'').trim();
   if (!raw) return null;
@@ -403,9 +427,13 @@ function parseIngredientLine(line) {
   let name = (m?.[3] || '').trim();
   if (maybeUnit && !unitCanonical) name = `${maybeUnit} ${name}`.trim();
   if (!name) name = raw;
+  const optional=/\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw);
+  name=cleanIngredientName(name)
+    .replace(/\s*\((?:optional|halutessasi|valinnainen|facoltativ[oa])\)\s*$/i,'')
+    .trim();
   const range = qtyText.match(/^(\d+(?:[.,]\d+)?)\s*[-–—]\s*(\d+(?:[.,]\d+)?)$/);
   let qty = range ? null : parseNumber(qtyText);
-  return { kind:'ingredient', raw, qty, qtyText, unit, unitCanonical, name, optional: /\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw) };
+  return { kind:'ingredient', raw, qty, qtyText, unit, unitCanonical, name, optional };
 }
 function ingredientToLine(i) {
   if (!i) return '';
@@ -536,6 +564,12 @@ function extractFirstImageUrl(text='') {
   const m = String(text).match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)[^)]*\)/i);
   return m?.[1] || '';
 }
+function extractLikelySourceUrl(text='') {
+  const urls=[...String(text).matchAll(/https?:\/\/[^\s<>()\]]+/gi)].map(m=>m[0].replace(/[.,;:]+$/,''));
+  if(!urls.length) return '';
+  const recipeish=urls.find(u=>!/\.(?:jpg|jpeg|png|webp|gif)(?:\?|$)/i.test(u) && !/r\.jina\.ai/i.test(u));
+  return recipeish||urls[0];
+}
 function inferCategory(text='') {
   const n = normalizeText(text);
   for (const [label, words] of CATEGORY_RULES) if (words.some(w => n.includes(normalizeText(w)))) return label;
@@ -588,7 +622,7 @@ function looksLikeStep(line='') {
   if (!s || headingType(s) || looksLikeIngredient(s)) return false;
   if (/^(?:step|vaihe|passaggio)?\s*\d+[.)\-:]\s*/i.test(s)) return true;
   if (s.length>45 && /[.!?]$/.test(s)) return true;
-  return /^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|allow|let|scrape|cut|divide|cover|set|scald|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|anna|jätä|jata|siivilöi|siiviloi|pyöräytä|pyorayta|pingota|pane|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda|lascia|copri|dividi|taglia)/i.test(s);
+  return /^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|allow|let|scrape|cut|divide|cover|set|scald|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|anna|jätä|jata|siivilöi|siiviloi|pyöräytä|pyorayta|pingota|pane|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda|lascia|copri|dividi|taglia)\b/i.test(s);
 }
 function cleanStepLine(l='') {
   return String(l).replace(/^•\s*/, '').replace(/^\s*(?:step|vaihe|passaggio)?\s*\d+[.):\-]?\s*/i,'').trim();
@@ -675,18 +709,26 @@ function joinIngredientContinuations(entries=[]) {
 function joinStepContinuations(entries=[]) {
   const out=[];
   let current='';
+  const numberedCount=entries.filter(entry=>/^(?:•\s*)?(?:\d+[.)]|step\s+\d|vaihe\s+\d|passaggio\s+\d)/i.test(String(entry.text||'').trim())).length;
+  const numberedMode=numberedCount>=2;
   for(const entry of entries){
-    const raw=entry.text.trim();
+    const raw=String(entry.text||'').trim();
     const s=cleanStepLine(raw);
     if(!s || BOILERPLATE_RE.test(s) || headingType(s) || isMetadataLine(s) || looksLikeIngredientGroup(s) || looksLikeIngredient(s)) continue;
     const bullet=/^•\s*/.test(raw);
-    const numbered=/^(?:\d+[.)]|step\s+\d|vaihe\s+\d|passaggio\s+\d)/i.test(raw.replace(/^•\s*/,''));
+    const numbered=/^(?:•\s*)?(?:\d+[.)]|step\s+\d|vaihe\s+\d|passaggio\s+\d)/i.test(raw);
     const strongStart=bullet||numbered||/^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|allow|let|scrape|cut|divide|cover|set|scald|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|anna|jätä|jata|siivilöi|siiviloi|pyöräytä|pyorayta|pingota|pane|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda|lascia|copri|dividi|taglia)(?=\s|$|[,.])/i.test(s);
-    if(strongStart){if(current)out.push(current);current=s;}
-    else if(current){current+=' '+s;}
-    else if(looksLikeStep(s)){current=s;}
+    if(numberedMode){
+      if(numbered){if(current)out.push(current.trim());current=s;}
+      else if(current){current+=' '+s;}
+      else if(looksLikeStep(s)){current=s;}
+    }else{
+      if(strongStart){if(current)out.push(current.trim());current=s;}
+      else if(current){current+=' '+s;}
+      else if(looksLikeStep(s)){current=s;}
+    }
   }
-  if(current)out.push(current);
+  if(current)out.push(current.trim());
   return out;
 }
 function findBestTitle(lines=[]) {
@@ -707,40 +749,73 @@ function findBestTitle(lines=[]) {
   return candidates[0]||null;
 }
 
-function extractMetadata(text='') {
+function extractMetadata(text='', source={}) {
   const result=[];
+  const add=(label,value)=>{value=String(value||'').trim();if(value&&!result.some(x=>x.toLowerCase().startsWith(label.toLowerCase()+':')))result.push(`${label}: ${value}`);};
+  const doc=source.documentMeta||{};
+  add('Prep time',doc.prepTime);
+  add('Cook time',doc.cookTime);
+  add('Rest / rise',doc.restTime);
+  add('Total time',doc.totalTime);
+  add('Author',doc.author);
   const patterns=[
     ['Prep time',/(?:prep(?:aration)? time|valmistusaika|tempo di preparazione)\s*[:\-]?\s*([^\n|]{2,45})/i],
     ['Cook time',/(?:cook(?:ing)? time|paistoaika|kypsennysaika|tempo di cottura)\s*[:\-]?\s*([^\n|]{2,45})/i],
     ['Rest / rise',/(?:rest(?:ing)?(?: and rising)? time|kohotus(?:aika)?|lepoaika|riposo|lievitazione)\s*[:\-]?\s*([^\n|]{2,45})/i],
-    ['Total time',/(?:total time|kokonaisaika|tempo totale)\s*[:\-]?\s*([^\n|]{2,45})/i]
+    ['Total time',/(?:total time|kokonaisaika|tempo totale)\s*[:\-]?\s*([^\n|]{2,45})/i],
+    ['Author',/(?:author|tekijä|tekija|autore)\s*:\s*([^\n|]{2,80})/i]
   ];
   for(const [label,re] of patterns){
     const m=String(text).match(re);if(!m)continue;
     const value=m[1].trim();
     if(/^(annokset|servings|porzioni|persone)$/i.test(value))continue;
-    result.push(`${label}: ${value}`);
+    add(label,value);
   }
   const fin=String(text).match(/VALMISTUSAIKA\s+ANNOKSET[\s\n]+([^\n]{2,35}?)\s+(\d+\s+annosta)/i);
-  if(fin && !result.some(x=>x.startsWith('Prep time')||x.startsWith('Valmistusaika'))) result.push(`Valmistusaika: ${fin[1].trim()}`);
+  if(fin) add('Valmistusaika',fin[1].trim());
   return result;
 }
-function extractServings(lines=[], text='') {
+function extractServings(lines=[], text='', source={}) {
+  if(source.documentMeta?.servings) return String(source.documentMeta.servings).trim();
   for(const l of lines){
-    let m=l.match(/^(?:servings?|yield)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].trim().replace(/\s{2,}/g,' ');
-    m=l.match(/^(?:porzioni?|dosi)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].trim();
-    m=l.match(/^(?:annokset|annoksia?)\s*[:\-]?\s*(\d+(?:\s*[-–]\s*\d+)?)/i); if(m) return m[1].trim();
+    let m=l.match(/^(?:servings?|yield)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].replace(/\s*(?:\||\s{2,})?\s*(?:author|by)\s*:.*$/i,'').trim().replace(/\s{2,}/g,' ');
+    m=l.match(/^(?:porzioni?|dosi)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].replace(/\s*(?:\||\s{2,})?\s*(?:autore)\s*:.*$/i,'').trim();
+    m=l.match(/^(?:annokset|annoksia?)\s*[:\-]?\s*(\d+(?:\s*[-–]\s*\d+)?(?:\s+[^|]{0,35})?)/i); if(m) return m[1].replace(/\s*(?:\||\s{2,})?\s*(?:tekijä|tekija)\s*:.*$/i,'').trim();
     m=l.match(/\b(\d+(?:\s*[-–]\s*\d+)?)\s+(annosta|porzioni|persone)\b/i); if(m) return m[1].trim();
   }
   const m=String(text).match(/(?:serves?|servings?|yield|annoksia?|annosta|annos|riittää|riittaa|porzioni?|dosi|persone)\s*[:\-]?\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
   return m?.[1]||'';
 }
 
+function joinNoteContinuations(entries=[]) {
+  const out=[];
+  let current='';
+  const flush=()=>{if(current.trim())out.push(current.trim());current='';};
+  for(const entry of entries){
+    const raw=String(entry.text||'').replace(/^•\s*/,'').trim();
+    if(!raw||BOILERPLATE_RE.test(raw)||/https?:\/\//i.test(raw))continue;
+    const subheading=/^(tips(?: for success)?|vinkit|vinkki|consigli|suggerimenti|note dello chef)$/i.test(raw);
+    if(subheading){flush();out.push(raw);continue;}
+    if(!current){current=raw;continue;}
+    if(/[.!?)]$/.test(current)){flush();current=raw;}
+    else current+=' '+raw;
+  }
+  flush();
+  return out;
+}
 function usefulNotesFromSections(lines, chosenStep) {
   const noteCandidates=collectSectionCandidates(lines,'notes');
-  let chosen=pickBestCandidate(noteCandidates,c=>Math.min(c.entries.length,20)+(chosenStep&&c.start>chosenStep.start?4:0),chosenStep?.start??-1);
+  let chosen=pickBestCandidate(noteCandidates,c=>Math.min(c.entries.length,30)+(chosenStep&&c.start>chosenStep.start?4:0),chosenStep?.start??-1);
   if(!chosen) return [];
-  return chosen.entries.map(x=>x.text.replace(/^•\s*/,'').trim()).filter(x=>x && x.length<350).slice(0,20);
+  return joinNoteContinuations(chosen.entries).filter(x=>x.length<900).slice(0,30);
+}
+function usefulNutritionFromSections(lines) {
+  const candidates=collectSectionCandidates(lines,'nutrition');
+  if(!candidates.length)return [];
+  const chosen=[...candidates].sort((a,b)=>b.entries.length-a.entries.length)[0];
+  const values=chosen.entries.map(x=>x.text.replace(/^•\s*/,'').trim()).filter(x=>x&&!BOILERPLATE_RE.test(x)&&!/https?:\/\//i.test(x)).slice(0,12);
+  if(!values.length)return [];
+  return ['Nutrition',values.join(' ').replace(/\s*\|\s*/g,' | ').replace(/\s+/g,' ').trim()];
 }
 function parseRecipeText(rawText, source = {}) {
   const imageUrl = source.imageUrl || extractFirstImageUrl(rawText);
@@ -777,8 +852,9 @@ function parseRecipeText(rawText, source = {}) {
   }
   steps=[...new Set(steps)].slice(0,50);
 
-  const meta=extractMetadata(String(rawText));
+  const meta=extractMetadata(String(rawText),source);
   const explicitNotes=usefulNotesFromSections(lines,chosenStep);
+  const nutritionNotes=usefulNutritionFromSections(lines);
   const intro=[];
   let introEnd=Math.min(lines.length,Math.max(0,titleIdx+1)+12);
   for(let j=Math.max(0,titleIdx+1);j<Math.min(lines.length,Math.max(0,titleIdx+1)+18);j++){if(headingType(lines[j])){introEnd=j;break;}}
@@ -794,13 +870,14 @@ function parseRecipeText(rawText, source = {}) {
   const noteParts=[...meta];
   if(intro.length) noteParts.push(...intro);
   if(explicitNotes.length){if(noteParts.length)noteParts.push('');noteParts.push(...explicitNotes);}
+  if(nutritionNotes.length){if(noteParts.length)noteParts.push('');noteParts.push(...nutritionNotes);}
   const notes=noteParts.join('\n').trim();
   const cleanText=stripMarkdown(String(rawText));
   const body=`${title}\n${cleanText}`;
   return {
-    id: uid('recipe'), title:title.slice(0,160), category:inferCategory(body), tags:inferTags(body), servings:extractServings(lines,cleanText),
+    id: uid('recipe'), title:title.slice(0,160), category:inferCategory(body), tags:inferTags(body), servings:extractServings(lines,cleanText,source),
     ingredients, steps, notes, favorite:false,
-    source:{type:source.type||'text',url:source.url||'',label:source.label||'',filename:source.filename||''},
+    source:{type:source.type||'text',url:source.url||extractLikelySourceUrl(rawText)||'',label:source.label||'',filename:source.filename||''},
     imageUrl, mediaId:source.mediaId||'',mediaType:source.mediaType||'',thumbnailId:source.thumbnailId||'',createdAt:Date.now(),updatedAt:Date.now()
   };
 }
@@ -1109,29 +1186,113 @@ async function loadPdfJs() {
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
   return pdfjs;
 }
+function pdfJoinItems(items=[]) {
+  const sorted=[...items].sort((a,b)=>a.x-b.x);
+  const heights=sorted.map(x=>x.h).filter(Number.isFinite).sort((a,b)=>a-b);
+  const medianH=heights.length?heights[Math.floor(heights.length/2)]:10;
+  const splitGap=Math.max(18,medianH*1.65);
+  const segments=[];
+  let current=''; let prevEnd=null;
+  for(const item of sorted){
+    const str=String(item.text||'').replace(/\s+/g,' ').trim();if(!str)continue;
+    const gap=prevEnd==null?0:item.x-prevEnd;
+    if(current && gap>splitGap){segments.push(current.trim());current='';}
+    if(current && !/^[,.;:!?%)\]]/.test(str) && !/[(/\-]$/.test(current)) current+=' ';
+    current+=str;
+    prevEnd=item.x+(item.w||0);
+  }
+  if(current.trim())segments.push(current.trim());
+  return segments;
+}
+function pdfPageLayoutLines(content) {
+  const raw=(content?.items||[]).map(item=>({
+    text:String(item.str||'').trim(),
+    x:Number(item.transform?.[4]||0), y:Number(item.transform?.[5]||0),
+    w:Number(item.width||0), h:Math.abs(Number(item.height||item.transform?.[3]||10))||10
+  })).filter(x=>x.text);
+  raw.sort((a,b)=>b.y-a.y||a.x-b.x);
+  const rows=[];
+  for(const item of raw){
+    let best=null,bestDelta=Infinity;
+    for(let i=Math.max(0,rows.length-5);i<rows.length;i++){
+      const row=rows[i]; const tol=Math.max(2.2,Math.min(6,Math.max(row.h,item.h)*.42));
+      const d=Math.abs(row.y-item.y);if(d<=tol&&d<bestDelta){best=row;bestDelta=d;}
+    }
+    if(!best)rows.push({y:item.y,h:item.h,items:[item]});
+    else{
+      best.items.push(item);
+      best.y=best.items.reduce((n,x)=>n+x.y,0)/best.items.length;
+      best.h=best.items.reduce((n,x)=>n+x.h,0)/best.items.length;
+    }
+  }
+  return rows.sort((a,b)=>b.y-a.y).map(row=>{
+    const segments=pdfJoinItems(row.items);
+    return {y:row.y,segments,text:segments.join(' | ')};
+  }).filter(x=>x.text);
+}
+function extractPdfDocumentMeta(layoutPages=[]) {
+  const first=layoutPages[0]||[];
+  const meta={};
+  const allSegments=[];
+  first.forEach((line,lineIndex)=>line.segments.forEach(text=>allSegments.push({lineIndex,y:line.y,text,xText:normalizeText(text)})));
+  // Reconstruct approximate x centres by splitting from original rows is unnecessary for ordinary PDFs;
+  // common recipe export grids are recognizable from the visual line sequence.
+  const lines=first.map(x=>x.text);
+  const joined=lines.join('\n');
+  let m=joined.match(/Servings?\s*:\s*([^\n|]+?)(?=\s+(?:Author|By)\s*:|\s*\||$)/i);if(m)meta.servings=m[1].trim();
+  m=joined.match(/Author\s*:\s*([^\n|]+)/i);if(m)meta.author=m[1].trim();
+  // Grid-style timing block: identify labels, then consume the nearby value rows in visual order.
+  const labelIdx=lines.findIndex(l=>/\bPrep Time\b/i.test(l)&&/\bCook Time\b/i.test(l));
+  if(labelIdx>=0){
+    const window=lines.slice(labelIdx,labelIdx+4).join(' | ');
+    const times=[...window.matchAll(/\b\d+(?:\.\d+)?\s*(?:hrs?|hours?|mins?|minutes?|h|min|ore?|minuti?)\b(?:\s+\d+\s*(?:mins?|minutes?|min|minuti?))?/gi)].map(x=>x[0].trim());
+    if(times[0])meta.prepTime=times[0];
+    if(times[1])meta.cookTime=times[1];
+    // This layout commonly places the rest/rise value on the next visual row and total on the first value row.
+    if(times.length>=4){meta.restTime=times[3];meta.totalTime=times[2];}
+    else if(times.length===3){meta.totalTime=times[2];}
+  }
+  // Straight label:value PDFs are even easier.
+  const direct=[['prepTime',/(?:Prep(?:aration)? Time|Valmistusaika|Tempo di preparazione)\s*[:\-]\s*([^\n|]+)/i],['cookTime',/(?:Cook(?:ing)? Time|Paistoaika|Kypsennysaika|Tempo di cottura)\s*[:\-]\s*([^\n|]+)/i],['restTime',/(?:Rest(?:ing)?(?: and Rising)? Time|Kohotusaika|Lepoaika|Lievitazione|Riposo)\s*[:\-]\s*([^\n|]+)/i],['totalTime',/(?:Total Time|Kokonaisaika|Tempo totale)\s*[:\-]\s*([^\n|]+)/i]];
+  for(const [key,re] of direct){const hit=joined.match(re);if(hit)meta[key]=hit[1].trim();}
+  return meta;
+}
+async function renderPdfPageBlob(page,scale=2) {
+  const viewport=page.getViewport({scale});
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(viewport.width));canvas.height=Math.max(1,Math.round(viewport.height));
+  await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+  return await new Promise(r=>canvas.toBlob(r,'image/jpeg',.9));
+}
 async function extractPdf(file) {
   setStatus(t('loadingPdf'));
   const pdfjs=await loadPdfJs();
   const data=await file.arrayBuffer();
   const doc=await pdfjs.getDocument({data}).promise;
-  let text='';
+  const layoutPages=[];
+  const pageTexts=[];
   const pages=Math.min(doc.numPages,25);
-  for(let p=1;p<=pages;p++){
-    setStatus(`Reading PDF page ${p} of ${pages}…`);
-    const page=await doc.getPage(p);
-    const content=await page.getTextContent();
-    text += '\n' + content.items.map(x=>x.str).join(' ');
-  }
   let thumbBlob=null;
-  try {
-    const page=await doc.getPage(1);
-    const viewport=page.getViewport({scale:1.25});
-    const canvas=document.createElement('canvas');
-    canvas.width=viewport.width;canvas.height=viewport.height;
-    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-    thumbBlob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.82));
-  } catch {}
-  return {text,thumbBlob};
+  for(let p=1;p<=pages;p++){
+    setStatus(`${state.language==='fi'?'Luetaan PDF-sivua':state.language==='it'?'Lettura pagina PDF':'Reading PDF page'} ${p}/${pages}…`);
+    const page=await doc.getPage(p);
+    const content=await page.getTextContent({includeMarkedContent:true});
+    const layout=pdfPageLayoutLines(content);
+    layoutPages.push(layout);
+    let pageText=layout.map(x=>x.text).join('\n').trim();
+    if(p===1){try{thumbBlob=await renderPdfPageBlob(page,1.25);}catch{}}
+    // Image-only/scanned PDFs have little or no usable text layer. OCR only those pages.
+    if(pageText.replace(/\s/g,'').length<80){
+      try{
+        const scan=await renderPdfPageBlob(page,2.25);
+        if(scan){const ocr=await ocrImage(scan,`PDF page ${p}`);if(ocr.trim().length>pageText.length)pageText=ocr.trim();}
+      }catch(e){console.warn('PDF OCR fallback failed',e);}
+    }
+    pageTexts.push(pageText);
+  }
+  const text=pageTexts.join('\n\n');
+  const documentMeta=extractPdfDocumentMeta(layoutPages);
+  return {text,thumbBlob,documentMeta};
 }
 async function loadTesseract() {
   if (window.Tesseract) return window.Tesseract;
@@ -1181,11 +1342,11 @@ async function processFile(file) {
   const type=file.type||'';
   const baseSource={filename:file.name,label:file.name};
   if(type==='application/pdf' || /\.pdf$/i.test(file.name)){
-    const {text,thumbBlob}=await extractPdf(file);
+    const {text,thumbBlob,documentMeta}=await extractPdf(file);
     let mediaId='',thumbnailId='';
     if(keep) mediaId=await storeMedia(file,{name:file.name});
     if(thumbBlob) thumbnailId=await storeMedia(thumbBlob,{name:`${file.name}-thumb.jpg`});
-    const recipe=parseRecipeText(text,{...baseSource,type:'pdf',mediaId,mediaType:'application/pdf',thumbnailId});
+    const recipe=parseRecipeText(text,{...baseSource,type:'pdf',mediaId,mediaType:'application/pdf',thumbnailId,documentMeta});
     return recipe;
   }
   if(type.startsWith('image/')){
@@ -1222,7 +1383,7 @@ async function handleFiles(fileList) {
   for(const file of files){
     try{
       const recipe=await processFile(file);
-      setStatus(`${file.name} extracted — review before saving`,false);
+      { const count=(recipe.ingredients||[]).filter(i=>i.kind!=='group').length; setStatus(`${file.name} · ${count} ${state.language==='fi'?'ainesta':state.language==='it'?'ingredienti':'ingredients'} · ${(recipe.steps||[]).length} ${state.language==='fi'?'vaihetta':state.language==='it'?'passaggi':'steps'}`,false); }
       openEditor(recipe,true);
       if(files.length>1) break;
     }catch(e){console.error(e);setStatus('',false);toast(`${state.language==='fi'?'Tiedostoa ei voitu tuoda':state.language==='it'?'Impossibile importare':'Could not import'} ${file.name}`);}
@@ -1385,7 +1546,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=6',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=7',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
