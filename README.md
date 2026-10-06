@@ -24,9 +24,9 @@ Recipe amounts can be displayed in Metric or US customary units. Conversions are
 PDF text is rebuilt from page coordinates before parsing, so headings, ingredients, wrapped instructions, notes and nutrition stay in visual reading order instead of being flattened into a single line. Recipe-export metadata and source URLs are also preserved when available.
 
 
-## Recipe library v10
+## Recipe library v11
 The Recipes page now always opens on All recipes and orders the collection by date added, newest first. Editing or favoriting a recipe does not change its position. Obsolete saved filters are reset automatically.
 
 
-## v10
+## v11
 Fixes the recipe-library cold-start rendering race so Newest/A–Z/Favorites populate correctly immediately after reload.

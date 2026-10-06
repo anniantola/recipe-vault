@@ -1,6 +1,6 @@
 const DB_NAME = 'recipe-vault-db';
 const DB_VERSION = 1;
-const APP_VERSION = 8;
+const APP_VERSION = 11;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -251,6 +251,10 @@ async function loadAll() {
   recipes.sort((a,b)=>recipeAddedAt(b)-recipeAddedAt(a));
   const saved = await idbGet('state', 'app');
   if (saved?.value) state = { ...state, ...saved.value };
+  // Be tolerant of state saved by older builds or partially restored backups.
+  if(!Array.isArray(state.pantry)) state.pantry=[];
+  if(!Array.isArray(state.available)) state.available=[];
+  if(!Array.isArray(state.shopping)) state.shopping=[];
   // The library should always open showing the complete collection.
   state.activeRecipeFilter = 'All';
   if(!['recent','title','favorite'].includes(state.recipeSort)) state.recipeSort='recent';
@@ -356,14 +360,19 @@ function cleanRecipeRecord(recipe) {
   recipe.title=cleanInlineSpacing(recipe.title||'');
   recipe.servings=cleanInlineSpacing(recipe.servings||'');
   recipe.category=cleanInlineSpacing(recipe.category||'');
-  recipe.tags=(recipe.tags||[]).map(cleanInlineSpacing).filter(Boolean);
+  const tags=Array.isArray(recipe.tags)?recipe.tags:(typeof recipe.tags==='string'?recipe.tags.split(','):[]);
+  recipe.tags=tags.map(cleanInlineSpacing).filter(Boolean);
   recipe.notes=cleanMultilineSpacing(recipe.notes||'');
-  recipe.steps=(recipe.steps||[]).map(cleanInlineSpacing).filter(Boolean);
-  recipe.ingredients=(recipe.ingredients||[]).map(i=>{
-    if(!i || typeof i!=='object') return i;
+  const steps=Array.isArray(recipe.steps)?recipe.steps:(typeof recipe.steps==='string'?recipe.steps.split(/\n+/):[]);
+  recipe.steps=steps.map(x=>cleanInlineSpacing(typeof x==='string'?x:(x?.text||''))).filter(Boolean);
+  const ingredients=Array.isArray(recipe.ingredients)?recipe.ingredients:[];
+  recipe.ingredients=ingredients.map(i=>{
+    if(typeof i==='string') return parseIngredientLine(cleanInlineSpacing(i));
+    if(!i || typeof i!=='object') return null;
     return {...i,raw:cleanInlineSpacing(i.raw||''),qtyText:cleanInlineSpacing(i.qtyText||''),unit:cleanInlineSpacing(i.unit||''),name:cleanInlineSpacing(i.name||'')};
   }).filter(Boolean);
-  if(recipe.source){recipe.source={...recipe.source,label:cleanInlineSpacing(recipe.source.label||''),filename:cleanInlineSpacing(recipe.source.filename||''),url:String(recipe.source.url||'').trim()};}
+  if(recipe.source && typeof recipe.source==='object') recipe.source={...recipe.source,label:cleanInlineSpacing(recipe.source.label||''),filename:cleanInlineSpacing(recipe.source.filename||''),url:String(recipe.source.url||'').trim()};
+  else recipe.source={type:'manual',url:'',label:'',filename:''};
   return recipe;
 }
 function recipeAddedAt(recipe){
@@ -950,6 +959,16 @@ const TAXONOMY_I18N={
   it:{Recipe:'Ricetta',Dessert:'Dolce',Baking:'Forno',Breakfast:'Colazione',Soup:'Zuppa',Pasta:'Pasta',Salad:'Insalata',Drink:'Bevanda',Sauce:'Salsa',Dinner:'Piatto principale',Italian:'Italiana',Finnish:'Finlandese',Mexican:'Messicana',Indian:'Indiana',Asian:'Asiatica',Vegetarian:'Vegetariana',Vegan:'Vegana',Quick:'Veloce','High protein':'Ricca di proteine',Video:'Video',Instagram:'Instagram'}
 };
 function displayTaxonomy(value=''){return TAXONOMY_I18N[state.language]?.[value]||value;}
+function sourceLabel(recipe) {
+  const type=String(recipe?.source?.type||'manual').toLowerCase();
+  if(['website','web','url','link'].includes(type)) return 'Web';
+  if(['image','photo','camera'].includes(type)) return 'Photo';
+  if(type==='pdf') return 'PDF';
+  if(['video','reel'].includes(type)) return 'Video';
+  if(type==='shared') return 'Shared';
+  if(type==='text') return 'Text';
+  return 'Manual';
+}
 function sourceDisplay(recipe) {
   const type=recipe.source?.type || 'manual';
   return ({text:t('textSource'),website:t('webSource'),image:t('photoSource'),pdf:t('pdfSource'),video:t('videoSource'),manual:t('manualSource'),shared:t('sharedSource')})[type] || sourceLabel(recipe);
@@ -957,8 +976,13 @@ function sourceDisplay(recipe) {
 
 async function getMediaUrl(id) {
   if (!id) return '';
-  const item = await idbGet('media', id);
-  return item?.blob ? URL.createObjectURL(item.blob) : '';
+  try {
+    const item = await idbGet('media', id);
+    return item?.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
+  } catch (err) {
+    console.warn('Could not load stored recipe media', id, err);
+    return '';
+  }
 }
 async function storeMedia(blob, meta={}) {
   const id = uid('media');
@@ -1059,7 +1083,13 @@ async function renderRecipes() {
   grid.setAttribute('aria-busy','true');
   grid.innerHTML = list.map(()=>'<article class="recipe-card recipe-card-loading" aria-hidden="true"><div class="recipe-thumb placeholder"></div><div class="recipe-card-body"><div class="skeleton-line wide"></div><div class="skeleton-line"></div></div></article>').join('');
 
-  const chunks = await Promise.all(list.map(r => recipeCardHtml(r)));
+  const chunks = await Promise.all(list.map(async r => {
+    try { return await recipeCardHtml(r); }
+    catch (err) {
+      console.warn('Could not render recipe card', r?.id, err);
+      return `<article class="recipe-card"><button class="card-hit" data-recipe="${escapeHtml(r?.id||'')}"><div class="recipe-thumb placeholder">⌑</div><div class="recipe-card-body"><h3>${escapeHtml(r?.title||'Untitled recipe')}</h3></div></button></article>`;
+    }
+  }));
   if (generation !== recipeRenderGeneration) return; // ignore stale async renders
   grid.innerHTML = chunks.join('');
   grid.removeAttribute('aria-busy');
@@ -1719,7 +1749,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=10',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=11',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
