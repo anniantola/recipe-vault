@@ -1,31 +1,20 @@
-# Recipe Vault v17
+# Recipe Vault v18
 
-A local-first recipe PWA for GitHub Pages. Keep your existing `.github/workflows/deploy.yml`; it is not included here.
+Recipe Vault is a local-first, installable recipe library for GitHub Pages.
 
-## v17 reliability pass
+## v18
 
-- Split persistent storage into `storage.js` and structured import/repair logic into `recipe-import.js`.
-- Added one default `RecipeDraft` shape used by manual recipes and structured website imports.
-- Website JSON-LD now maps directly into that draft instead of being flattened through the generic text parser first.
-- Added conservative automatic repair for missing oven temperature, cook/bake time, servings, and total time. Explicit source/user values are never overwritten.
-- Import review shows which fields were recovered automatically.
-- Pasta shapes classify as Pasta without automatically implying Italian cuisine; Italian cuisine needs an actual Italian signal or source metadata.
-- PDF corruption detection/OCR fallback, compact JSON/full ZIP backups, structured editor, pantry-first matching, duplicate detection and cover presets from v16 remain.
-- Schema/cache version: 17.
+- Recipe content is multilingual, not just the interface. New/edited recipes are translated between English, Finnish and Italian when saved.
+- Recipe titles, descriptions, servings/yield text, type/cuisine/dietary/traits, ingredient section names, ingredient units/names/notes, instructions, equipment, notes and nutrition text can switch with the app language.
+- Pantry items, temporary ingredients and manual/recipe shopping-list items are translated to all three languages when added.
+- Recipe search searches the original and translated text, so a Finnish search can find an English-imported recipe after translation.
+- Pantry matching can compare stored ingredient translations across EN/FI/IT, so the same ingredient can still match when the recipe and pantry were entered in different languages.
+- The original recipe/source wording remains the authoritative saved recipe. Machine translations are stored separately and refreshed when the recipe is edited.
+- Existing v17 and older recipes/items are backfilled in the background; if translation is temporarily unavailable, the original text is shown and Recipe Vault retries later.
+- Translation requires an internet connection and sends the text being translated to an external translation service. Generated translations are cached locally and included in backups.
 
 ## Files
 
-Upload all files in this ZIP to the repository root. The app uses:
+Upload all files in this package to the root of the existing GitHub Pages repository. Keep the repository's existing `.github/workflows/deploy.yml` unchanged.
 
-- `index.html`
-- `app.js`
-- `recipe-core.js`
-- `recipe-import.js`
-- `storage.js`
-- `styles.css`
-- `manifest.webmanifest`
-- `sw.js`
-- `icon-192.png`
-- `icon-512.png`
-
-The deployment workflow is intentionally not included.
+The app remains framework-free and stores recipes/media locally in IndexedDB. Compact JSON backups omit media blobs; full ZIP backups include stored media separately.

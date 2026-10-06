@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 const TYPE_RULES = [
   ['Dessert', /\b(cake|cheesecake|cookie|cookies|brownie|dessert|pudding|tart|ice cream|kakku|jälkiruoka|dolce|torta|biscotti)\b/i],
@@ -214,13 +214,13 @@ export function compactRecipe(recipe={}){
   const out={
     id:r.id,t:r.title,ty:r.type,cu:r.cuisine||[],di:r.dietary||[],tr:r.traits||[],sv:r.servings||'',pt:r.prepTime||'',ct:r.cookTime||'',rt:r.restTime||'',tt:r.totalTime||'',temp:r.temperature||'',au:r.author||'',d:r.description||'',
     ing:(r.ingredients||[]).map(compactIngredient),st:r.steps||[],eq:r.equipment||[],no:r.notes||'',nu:r.nutrition||'',fav:r.favorite?1:0,
-    src:r.source||{},img:(/^data:/i.test(String(r.imageUrl||''))?'':(r.imageUrl||'')),mid:r.mediaId||'',mt:r.mediaType||'',tid:r.thumbnailId||'',cid:r.coverMediaId||'',cp:r.coverPreset||'',ca:r.createdAt||0,ua:r.updatedAt||0
+    src:r.source||{},img:(/^data:/i.test(String(r.imageUrl||''))?'':(r.imageUrl||'')),mid:r.mediaId||'',mt:r.mediaType||'',tid:r.thumbnailId||'',cid:r.coverMediaId||'',cp:r.coverPreset||'',sl:r.sourceLanguage||'',xl:r.translations||{},tu:r.translationUpdatedAt||0,tm:r.translationMissing||[],ca:r.createdAt||0,ua:r.updatedAt||0
   };
   return out;
 }
 export function expandRecipe(r={}){
   if(!('t' in r))return upgradeRecipeSchema(r);
   return upgradeRecipeSchema({
-    id:r.id,title:r.t||'',type:r.ty||'Recipe',category:r.ty||'Recipe',cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',createdAt:r.ca||0,updatedAt:r.ua||0
+    id:r.id,title:r.t||'',type:r.ty||'Recipe',category:r.ty||'Recipe',cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',sourceLanguage:r.sl||'',translations:r.xl||{},translationUpdatedAt:r.tu||0,translationMissing:r.tm||[],createdAt:r.ca||0,updatedAt:r.ua||0
   });
 }

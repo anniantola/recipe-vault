@@ -1,6 +1,7 @@
-import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=17';
-import { createRecipeDraft, recipeSchemaFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft } from './recipe-import.js?v=17';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=17';
+import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=18';
+import { createRecipeDraft, recipeSchemaFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft } from './recipe-import.js?v=18';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=18';
+import { SUPPORTED_LANGUAGES, detectLanguage, ensureRecipeTranslations, localizedRecipe, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=18';
 const APP_VERSION = SCHEMA_VERSION;
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -10,11 +11,11 @@ const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
 const UNIT_ALIASES = {
   kg:'kg', g:'g', mg:'mg', l:'l', dl:'dl', cl:'cl', ml:'ml',
-  tbsp:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp', rkl:'tbsp',
+  tbsp:'tbsp', tablespoon:'tbsp', tablespoons:'tbsp', rkl:'tbsp', 'ruokalusikallinen':'tbsp', 'ruokalusikallista':'tbsp', 'ruokalusikalliset':'tbsp',
   'cucchiaio':'tbsp', 'cucchiai':'tbsp',
-  tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp', tl:'tsp',
+  tsp:'tsp', teaspoon:'tsp', teaspoons:'tsp', tl:'tsp', 'teelusikallinen':'tsp', 'teelusikallista':'tsp', 'teelusikalliset':'tsp',
   'cucchiaino':'tsp', 'cucchiaini':'tsp',
-  cup:'cup', cups:'cup', 'tazza':'cup', 'tazze':'cup',
+  cup:'cup', cups:'cup', 'kuppi':'cup', 'kupillinen':'cup', 'kupillista':'cup', 'tazza':'cup', 'tazze':'cup',
   oz:'oz', ounce:'oz', ounces:'oz', lb:'lb', lbs:'lb', pound:'lb', pounds:'lb',
   pinch:'pinch', pinches:'pinch', 'ripaus':'pinch', 'hyppysellinen':'pinch', 'pizzico':'pinch', 'pizzichi':'pinch',
   can:'can', cans:'can', tin:'can', tins:'can', 'prk':'can', 'purkki':'can', 'lattina':'can', 'lattine':'can',
@@ -113,6 +114,7 @@ let state = {
   pantry: [],
   available: [],
   shopping: [],
+  textTranslations: {},
   theme: 'system',
   language: 'en',
   measurementSystem: 'metric',
@@ -134,7 +136,7 @@ const I18N = {
     whatCanIMake:'WHAT CAN I MAKE?', matchWhatYouHave:'Match what you have', matcherHelp:'Your pantry is the main ingredient list. Add what you keep at home; Recipe Vault uses it automatically when ranking recipes.', availablePlaceholder:'e.g. one-off ingredient', add:'Add', includePantry:'Include pantry', includePantryHelp:'Use ingredients you have saved at home.', temporaryIngredients:'Temporary ingredients', temporaryIngredientsHelp:'Add something you have right now without saving it to your pantry.', addFewIngredients:'Add a few ingredients', matchEmptyText:'Your recipes will be ranked by how many required ingredients you already have.',
     text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses a CORS relay to read public recipe pages and may use Jina Reader as a fallback. The URL is sent to those external services for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
     shoppingList:'SHOPPING LIST', addAnything:'Add anything…', clearChecked:'Clear checked', listEmpty:'Your list is empty', listEmptyText:'Add ingredients from any recipe, or type unrelated shopping items above.', atHome:'AT HOME', pantry:'Pantry', pantryHelp:'Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.', pantryPlaceholder:'Add pantry ingredient…', nothingSaved:'Nothing saved yet.',
-    languageEyebrow:'LANGUAGE', language:'Language', appLanguage:'App language', appLanguageHelp:'Changes the interface language. Recipe parsing always understands English, Finnish and Italian.', appearance:'APPEARANCE', theme:'Theme', colorTheme:'Color theme', darkHelp:'Dark mode uses a true black background.', system:'System', dark:'Dark', light:'Light', data:'DATA', backupRestore:'Backup & restore', backupHelp:'Your data is stored locally on this device. Compact JSON keeps recipes and settings small; Full ZIP also includes stored photos, PDFs and videos.', includeMedia:'Include recipe media', includeMediaHelp:'Includes stored photos, PDFs and videos; backups can become large.', exportJson:'Export compact JSON', importJson:'Import JSON', app:'APP', installVault:'Install Recipe Vault', installHelp:'Install it to your home screen for standalone use and Android share-sheet importing.', installApp:'Install app', installed:'Installed', shareHelp:'After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android’s normal Share menu on supporting browsers.', reset:'RESET', clearData:'Clear app data', deleteAll:'Delete all recipes and lists',
+    languageEyebrow:'LANGUAGE', language:'Language', appLanguage:'App language', appLanguageHelp:'Changes the interface and recipe content language. New recipes and list items are translated to English, Finnish and Italian and cached locally. Translation needs internet and sends the text to an external translation service.', translatingContent:'Translating recipe content…', translationUnavailable:'Some translations could not be created yet; the original text is kept and Recipe Vault will retry later.', translationsUpdated:'Translations updated', appearance:'APPEARANCE', theme:'Theme', colorTheme:'Color theme', darkHelp:'Dark mode uses a true black background.', system:'System', dark:'Dark', light:'Light', data:'DATA', backupRestore:'Backup & restore', backupHelp:'Your data is stored locally on this device. Compact JSON keeps recipes and settings small; Full ZIP also includes stored photos, PDFs and videos.', includeMedia:'Include recipe media', includeMediaHelp:'Includes stored photos, PDFs and videos; backups can become large.', exportJson:'Export compact JSON', importJson:'Import JSON', app:'APP', installVault:'Install Recipe Vault', installHelp:'Install it to your home screen for standalone use and Android share-sheet importing.', installApp:'Install app', installed:'Installed', shareHelp:'After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android’s normal Share menu on supporting browsers.', reset:'RESET', clearData:'Clear app data', deleteAll:'Delete all recipes and lists',
     save:'Save', reviewRecipe:'Review recipe', editRecipe:'Edit recipe', title:'Title', servings:'Servings', servingsPlaceholder:'e.g. 4', prepTime:'Prep time', prepTimePlaceholder:'e.g. 30 mins', cookBakeTime:'Cook / bake time', cookBakeTimePlaceholder:'e.g. 30 mins', restRiseTime:'Rest / rise time', restRiseTimePlaceholder:'e.g. 3 hrs 40 mins', totalTime:'Total time', totalTimePlaceholder:'e.g. 4 hrs 40 mins', ovenTemperature:'Oven', ovenTemperaturePlaceholder:'e.g. 180°C / 350°F', category:'Category', categoryPlaceholder:'Dinner, baking…', tags:'Tags', tagsPlaceholder:'Italian, vegetarian, quick…', ingredients:'Ingredients', ingredientsPlaceholder:'One ingredient per line', steps:'Steps', stepsPlaceholder:'One step per line', notes:'Notes / extra information', notesPlaceholder:'Tips, substitutions, storage, or anything that did not fit elsewhere', sourceUrl:'Source URL', deleteRecipe:'Delete recipe', addToShopping:'Add to shopping', cancel:'Cancel', delete:'Delete', source:'Source', optional:'optional', noIngredients:'No ingredients parsed.', noSteps:'No steps parsed.', originalVideo:'Original video', originalPdf:'Original PDF', openStoredPdf:'Open stored PDF ↗', checkWhatIHave:'Check what I have', alreadyAtHome:'Already at home', noIngredientsAvailable:'No ingredients available.',
     all:'All', match:'match', ingredientSingular:'ingredient', ingredientPlural:'ingredients', atHomeLower:'at home', available:'available', recipeSingular:'recipe', recipePlural:'recipes', ranked:'ranked', itemSingular:'item', itemPlural:'items', from:'From', manualItems:'manual items', manualLower:'manual', movedToPantry:'moved to pantry', recipeSaved:'Recipe saved', recipeDeleted:'Recipe deleted', backupExported:'Backup exported', backupRestored:'Backup restored',
     textSource:'Text', webSource:'Web', photoSource:'Photo', pdfSource:'PDF', videoSource:'Video', manualSource:'Manual', sharedSource:'Shared', servingsUpper:'SERVINGS', pasteFirst:'Paste a recipe first', parsingText:'Parsing text…', parsedReview:'Recipe parsed — review before saving', pasteLinkFirst:'Paste a website link first', readingWebsite:'Reading website…', websiteRead:'Website read — review the extracted recipe', linkFailed:'Could not read that link. Download/share the file or paste the recipe text.', loadingPdf:'Loading PDF reader…', loadingOcr:'Loading OCR…', sharedFailed:'The shared item could not be imported', buildingBackup:'Building backup…', readingBackup:'Reading backup…', restoreBackup:'Restore backup?', restoreBackupText:'This will replace the recipes, pantry and shopping list currently stored in this app.', restore:'Restore', backupImportFailed:'That backup could not be imported', deleteRecipeQ:'Delete recipe?', deleteRecipeText:'and its stored source media will be deleted from this device.', deleteAllQ:'Delete all app data?', deleteAllText:'This permanently removes every locally stored recipe, source file, pantry item and shopping-list item from this browser.', deleteEverything:'Delete everything', deletedAll:'All local data deleted', browserInstall:'Use your browser menu → Install app / Add to Home screen', appStartFailed:'Recipe Vault could not start', noVideoText:'No readable recipe text was detected in the sampled video frames. Add ingredients/steps manually while reviewing.', recipesSaved:'recipes saved locally.', storageUsed:'Browser storage:', used:'used', ofAbout:'of about', ingredientsAdded:'ingredients added', importingFirst:'Importing first file now', measurementsEyebrow:'MEASUREMENTS', measurements:'Measurements', measurementSystem:'Measurement system', measurementHelp:'Switch recipe amounts between metric and US customary. The original imported quantities stay stored unchanged.', metric:'Metric', usCustomary:'US', measurementChanged:'Measurements changed', approx:'approx.', description:'Description', descriptionPlaceholder:'Short recipe description', recipeType:'Type', cuisine:'Cuisine', dietary:'Dietary', traits:'Traits', addSection:'+ Section', addIngredient:'+ Ingredient', addStep:'+ Step', equipment:'Equipment', nutrition:'Nutrition', exportFullZip:'Export full ZIP', importBackup:'Import backup', importQuality:'Import quality', qualityGood:'Good', qualityReview:'Needs review', qualityPoor:'Poor', readyToMake:'Ready to make', missingMain:'Missing main ingredients', missingStaples:'Missing only staples', duplicateFound:'This recipe already exists. Press OK to update the existing recipe, or Cancel to create another copy.', sectionName:'Section name', quantity:'Qty', unitLabel:'Unit', ingredientName:'Ingredient', ingredientNote:'Note', qualityClean:'No structural problems detected.', autoRecovered:'Recovered automatically', typePlaceholder:'Pasta, Soup, Dessert…', cuisinePlaceholder:'Italian, Finnish…', dietaryPlaceholder:'Vegetarian, Vegan…', traitsPlaceholder:'Quick, Easy…', equipmentPlaceholder:'One item per line', nutritionPlaceholder:'Nutrition information', issueTitleMissing:'Title was not detected.', issueTitleSpacing:'Title contains suspicious spacing.', issueFewIngredients:'Very few ingredients were detected.', issueNoSteps:'No preparation steps were detected.', issueIngredientSpacing:'{count} ingredient lines contain suspicious spacing.', issueStepImbalance:'Instruction count is unusually high relative to ingredients.', issueServingsMissing:'Servings/yield was not detected.', issueTempMissing:'An oven temperature appears in the instructions but the Oven field is empty.', issueTotalTooShort:'Total time is shorter than the component times.'
@@ -145,7 +147,7 @@ const I18N = {
     whatCanIMake:'MITÄ VOIN TEHDÄ?', matchWhatYouHave:'Etsi aineksillasi', matcherHelp:'Kotivarasto on pääasiallinen ainelistasi. Lisää sinne kotona olevat ainekset; Recipe Vault käyttää niitä automaattisesti reseptien järjestämiseen.', availablePlaceholder:'esim. tilapäinen aines', add:'Lisää', includePantry:'Sisällytä kotivarasto', includePantryHelp:'Käytä myös kotiin tallennettuja aineksia.', temporaryIngredients:'Tilapäiset ainekset', temporaryIngredientsHelp:'Lisää tähän jotain, mitä sinulla on juuri nyt mutta jota et halua tallentaa kotivarastoon.', addFewIngredients:'Lisää muutama aines', matchEmptyText:'Reseptit järjestetään sen mukaan, kuinka moni tarvittava aines sinulla jo on.',
     text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää CORS-välityspalvelua julkisten reseptisivujen lukemiseen ja voi käyttää Jina Readeria varavaihtoehtona. URL lähetetään näihin ulkoisiin palveluihin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
     shoppingList:'OSTOSLISTA', addAnything:'Lisää mitä tahansa…', clearChecked:'Poista rastitetut', listEmpty:'Ostoslista on tyhjä', listEmptyText:'Lisää aineksia resepteistä tai kirjoita listaan muita ostoksia.', atHome:'KOTONA', pantry:'Kotivarasto', pantryHelp:'Kotivarastoon tallennetut ainekset jätetään automaattisesti pois, kun lisäät puuttuvat reseptiainekset ostoslistalle.', pantryPlaceholder:'Lisää aines kotivarastoon…', nothingSaved:'Ei vielä tallennettuja aineksia.',
-    languageEyebrow:'KIELI', language:'Kieli', appLanguage:'Sovelluksen kieli', appLanguageHelp:'Vaihtaa käyttöliittymän kielen. Reseptien jäsennys ymmärtää aina englantia, suomea ja italiaa.', appearance:'ULKOASU', theme:'Teema', colorTheme:'Väriteema', darkHelp:'Tumma tila käyttää täysin mustaa taustaa.', system:'Järjestelmä', dark:'Tumma', light:'Vaalea', data:'TIEDOT', backupRestore:'Varmuuskopiointi', backupHelp:'Tiedot tallennetaan paikallisesti tälle laitteelle. Pieni JSON sisältää reseptit ja asetukset; täysi ZIP sisältää myös kuvat, PDF:t ja videot.', includeMedia:'Sisällytä mediatiedostot', includeMediaHelp:'Sisältää tallennetut kuvat, PDF:t ja videot; varmuuskopio voi olla suuri.', exportJson:'Vie pieni JSON', importJson:'Tuo JSON', app:'SOVELLUS', installVault:'Asenna Recipe Vault', installHelp:'Asenna kotinäytölle erillisenä sovelluksena ja Androidin jakovalikkoa varten.', installApp:'Asenna sovellus', installed:'Asennettu', shareHelp:'Asennuksen jälkeen ladattuja reseptikuvia, videoita ja PDF:iä voi jakaa Recipe Vaultiin Androidin tavallisesta jakovalikosta tuetuissa selaimissa.', reset:'NOLLAUS', clearData:'Tyhjennä sovelluksen tiedot', deleteAll:'Poista kaikki reseptit ja listat',
+    languageEyebrow:'KIELI', language:'Kieli', appLanguage:'Sovelluksen kieli', appLanguageHelp:'Vaihtaa käyttöliittymän ja reseptisisällön kielen. Uudet reseptit ja listakohteet käännetään englanniksi, suomeksi ja italiaksi ja tallennetaan paikallisesti. Käännös tarvitsee internetyhteyden ja lähettää tekstin ulkoiseen käännöspalveluun.', translatingContent:'Käännetään reseptin sisältöä…', translationUnavailable:'Kaikkia käännöksiä ei voitu vielä luoda; alkuperäinen teksti säilytetään ja Recipe Vault yrittää myöhemmin uudelleen.', translationsUpdated:'Käännökset päivitetty', appearance:'ULKOASU', theme:'Teema', colorTheme:'Väriteema', darkHelp:'Tumma tila käyttää täysin mustaa taustaa.', system:'Järjestelmä', dark:'Tumma', light:'Vaalea', data:'TIEDOT', backupRestore:'Varmuuskopiointi', backupHelp:'Tiedot tallennetaan paikallisesti tälle laitteelle. Pieni JSON sisältää reseptit ja asetukset; täysi ZIP sisältää myös kuvat, PDF:t ja videot.', includeMedia:'Sisällytä mediatiedostot', includeMediaHelp:'Sisältää tallennetut kuvat, PDF:t ja videot; varmuuskopio voi olla suuri.', exportJson:'Vie pieni JSON', importJson:'Tuo JSON', app:'SOVELLUS', installVault:'Asenna Recipe Vault', installHelp:'Asenna kotinäytölle erillisenä sovelluksena ja Androidin jakovalikkoa varten.', installApp:'Asenna sovellus', installed:'Asennettu', shareHelp:'Asennuksen jälkeen ladattuja reseptikuvia, videoita ja PDF:iä voi jakaa Recipe Vaultiin Androidin tavallisesta jakovalikosta tuetuissa selaimissa.', reset:'NOLLAUS', clearData:'Tyhjennä sovelluksen tiedot', deleteAll:'Poista kaikki reseptit ja listat',
     save:'Tallenna', reviewRecipe:'Tarkista resepti', editRecipe:'Muokkaa reseptiä', title:'Nimi', servings:'Annokset', servingsPlaceholder:'esim. 4', prepTime:'Valmisteluaika', prepTimePlaceholder:'esim. 30 min', cookBakeTime:'Kypsennys / paisto', cookBakeTimePlaceholder:'esim. 30 min', restRiseTime:'Lepo / kohotus', restRiseTimePlaceholder:'esim. 3 h 40 min', totalTime:'Kokonaisaika', totalTimePlaceholder:'esim. 4 h 40 min', ovenTemperature:'Uuni', ovenTemperaturePlaceholder:'esim. 180 °C / 350 °F', category:'Kategoria', categoryPlaceholder:'Päivällinen, leivonta…', tags:'Tagit', tagsPlaceholder:'Italialainen, kasvis, nopea…', ingredients:'Ainekset', ingredientsPlaceholder:'Yksi aines per rivi', steps:'Ohjeet', stepsPlaceholder:'Yksi vaihe per rivi', notes:'Muistiinpanot / lisätiedot', notesPlaceholder:'Vinkit, korvaavat ainekset, säilytys tai muu tieto, joka ei kuulu aineksiin tai ohjeisiin', sourceUrl:'Lähde-URL', deleteRecipe:'Poista resepti', addToShopping:'Lisää ostoslistalle', cancel:'Peruuta', delete:'Poista', source:'Lähde', optional:'valinnainen', noIngredients:'Aineksia ei tunnistettu.', noSteps:'Ohjeita ei tunnistettu.', originalVideo:'Alkuperäinen video', originalPdf:'Alkuperäinen PDF', openStoredPdf:'Avaa tallennettu PDF ↗', checkWhatIHave:'Tarkista mitä minulla on', alreadyAtHome:'On jo kotona', noIngredientsAvailable:'Ei aineksia.',
     all:'Kaikki', match:'osuma', ingredientSingular:'aines', ingredientPlural:'ainesta', atHomeLower:'kotona', available:'käytettävissä', recipeSingular:'resepti', recipePlural:'reseptiä', ranked:'järjestetty', itemSingular:'tuote', itemPlural:'tuotetta', from:'Resepteistä', manualItems:'+ käsin lisätyt', manualLower:'käsin', movedToPantry:'siirretty kotivarastoon', recipeSaved:'Resepti tallennettu', recipeDeleted:'Resepti poistettu', backupExported:'Varmuuskopio viety', backupRestored:'Varmuuskopio palautettu',
     textSource:'Teksti', webSource:'Verkko', photoSource:'Kuva', pdfSource:'PDF', videoSource:'Video', manualSource:'Käsin', sharedSource:'Jaettu', servingsUpper:'ANNOSTA', pasteFirst:'Liitä ensin resepti', parsingText:'Jäsennetään tekstiä…', parsedReview:'Resepti jäsennetty — tarkista ennen tallennusta', pasteLinkFirst:'Liitä ensin verkkolinkki', readingWebsite:'Luetaan verkkosivua…', websiteRead:'Verkkosivu luettu — tarkista poimittu resepti', linkFailed:'Linkkiä ei voitu lukea. Lataa/jaa tiedosto tai liitä reseptin teksti.', loadingPdf:'Ladataan PDF-lukijaa…', loadingOcr:'Ladataan tekstintunnistusta…', sharedFailed:'Jaettua kohdetta ei voitu tuoda', buildingBackup:'Luodaan varmuuskopiota…', readingBackup:'Luetaan varmuuskopiota…', restoreBackup:'Palautetaanko varmuuskopio?', restoreBackupText:'Tämä korvaa sovellukseen nyt tallennetut reseptit, kotivaraston ja ostoslistan.', restore:'Palauta', backupImportFailed:'Varmuuskopiota ei voitu tuoda', deleteRecipeQ:'Poistetaanko resepti?', deleteRecipeText:'ja sen tallennettu lähdemedia poistetaan tältä laitteelta.', deleteAllQ:'Poistetaanko kaikki sovelluksen tiedot?', deleteAllText:'Tämä poistaa pysyvästi kaikki tähän selaimeen tallennetut reseptit, lähdetiedostot, kotivaraston ja ostoslistan.', deleteEverything:'Poista kaikki', deletedAll:'Kaikki paikalliset tiedot poistettu', browserInstall:'Käytä selaimen valikkoa → Asenna sovellus / Lisää aloitusnäyttöön', appStartFailed:'Recipe Vault ei käynnistynyt', noVideoText:'Videon näyteruuduista ei löytynyt luettavaa reseptitekstiä. Lisää ainekset ja ohjeet käsin tarkistuksen aikana.', recipesSaved:'reseptiä tallennettu paikallisesti.', storageUsed:'Selaintallennus:', used:'käytössä', ofAbout:'noin', ingredientsAdded:'ainesta lisätty', importingFirst:'Tuodaan nyt ensimmäinen tiedosto', measurementsEyebrow:'MITAT', measurements:'Mitat', measurementSystem:'Mittajärjestelmä', measurementHelp:'Vaihda reseptien määrät metrijärjestelmän ja USA:n mittojen välillä. Alkuperäiset tuodut määrät säilyvät muuttumattomina.', metric:'Metri', usCustomary:'USA', measurementChanged:'Mittajärjestelmä vaihdettu', approx:'noin', description:'Kuvaus', descriptionPlaceholder:'Lyhyt reseptikuvaus', recipeType:'Tyyppi', cuisine:'Keittiö', dietary:'Ruokavalio', traits:'Ominaisuudet', addSection:'+ Osio', addIngredient:'+ Aines', addStep:'+ Vaihe', equipment:'Välineet', nutrition:'Ravintoarvot', exportFullZip:'Vie täysi ZIP', importBackup:'Tuo varmuuskopio', importQuality:'Tuonnin laatu', qualityGood:'Hyvä', qualityReview:'Tarkistettava', qualityPoor:'Heikko', readyToMake:'Valmis tehtäväksi', missingMain:'Puuttuu pääraaka-aineita', missingStaples:'Puuttuu vain perusaineita', duplicateFound:'Tämä resepti on jo olemassa. OK päivittää olemassa olevan reseptin, Peruuta luo uuden kopion.', sectionName:'Osion nimi', quantity:'Määrä', unitLabel:'Yksikkö', ingredientName:'Aines', ingredientNote:'Huomio', qualityClean:'Rakenteellisia ongelmia ei havaittu.', autoRecovered:'Täydennetty automaattisesti', typePlaceholder:'Pasta, keitto, jälkiruoka…', cuisinePlaceholder:'Italialainen, suomalainen…', dietaryPlaceholder:'Kasvis, vegaaninen…', traitsPlaceholder:'Nopea, helppo…', equipmentPlaceholder:'Yksi väline per rivi', nutritionPlaceholder:'Ravintoarvot', issueTitleMissing:'Nimeä ei tunnistettu.', issueTitleSpacing:'Nimessä on epäilyttävää välistystä.', issueFewIngredients:'Aineksia tunnistettiin hyvin vähän.', issueNoSteps:'Valmistusvaiheita ei tunnistettu.', issueIngredientSpacing:'{count} ainesrivillä on epäilyttävää välistystä.', issueStepImbalance:'Vaiheita on poikkeuksellisen paljon aineksiin verrattuna.', issueServingsMissing:'Annosmäärää ei tunnistettu.', issueTempMissing:'Ohjeissa näkyy uunin lämpötila, mutta Uuni-kenttä on tyhjä.', issueTotalTooShort:'Kokonaisaika on lyhyempi kuin osa-aikojen summa.'
@@ -156,7 +158,7 @@ const I18N = {
     whatCanIMake:'COSA POSSO CUCINARE?', matchWhatYouHave:'Abbina ciò che hai', matcherHelp:'La dispensa è l’elenco principale degli ingredienti. Aggiungi ciò che tieni a casa; Recipe Vault lo usa automaticamente per ordinare le ricette.', availablePlaceholder:'es. pomodoro, pasta, parmigiano', add:'Aggiungi', includePantry:'Includi dispensa', includePantryHelp:'Usa anche gli ingredienti salvati a casa.', temporaryIngredients:'Ingredienti temporanei', temporaryIngredientsHelp:'Aggiungi qualcosa che hai adesso senza salvarlo nella dispensa.', addFewIngredients:'Aggiungi alcuni ingredienti', matchEmptyText:'Le ricette saranno ordinate in base a quanti ingredienti necessari hai già.',
     text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa un relay CORS per leggere le pagine pubbliche e può usare Jina Reader come fallback. L’URL viene inviato a questi servizi esterni per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
     shoppingList:'LISTA DELLA SPESA', addAnything:'Aggiungi qualsiasi cosa…', clearChecked:'Rimuovi selezionati', listEmpty:'La lista è vuota', listEmptyText:'Aggiungi ingredienti da una ricetta oppure altri articoli manualmente.', atHome:'A CASA', pantry:'Dispensa', pantryHelp:'Gli ingredienti salvati in dispensa vengono esclusi automaticamente quando aggiungi alla spesa quelli mancanti di una ricetta.', pantryPlaceholder:'Aggiungi ingrediente in dispensa…', nothingSaved:'Ancora nessun ingrediente salvato.',
-    languageEyebrow:'LINGUA', language:'Lingua', appLanguage:'Lingua dell’app', appLanguageHelp:'Cambia la lingua dell’interfaccia. L’analisi delle ricette comprende sempre inglese, finlandese e italiano.', appearance:'ASPETTO', theme:'Tema', colorTheme:'Tema colore', darkHelp:'La modalità scura usa uno sfondo nero puro.', system:'Sistema', dark:'Scuro', light:'Chiaro', data:'DATI', backupRestore:'Backup e ripristino', backupHelp:'I dati sono salvati localmente su questo dispositivo. Il JSON compatto contiene ricette e impostazioni; lo ZIP completo include anche foto, PDF e video.', includeMedia:'Includi file multimediali', includeMediaHelp:'Include foto, PDF e video salvati; il backup può diventare grande.', exportJson:'Esporta JSON compatto', importJson:'Importa JSON', app:'APP', installVault:'Installa Recipe Vault', installHelp:'Installalo nella schermata Home per usarlo come app e importare dal menu Condividi di Android.', installApp:'Installa app', installed:'Installata', shareHelp:'Dopo l’installazione, foto, video e PDF di ricette scaricati possono essere condivisi con Recipe Vault dal normale menu Condividi di Android nei browser supportati.', reset:'RESET', clearData:'Cancella dati app', deleteAll:'Elimina tutte le ricette e le liste',
+    languageEyebrow:'LINGUA', language:'Lingua', appLanguage:'Lingua dell’app', appLanguageHelp:'Cambia la lingua dell’interfaccia e del contenuto delle ricette. Nuove ricette e voci delle liste vengono tradotte in inglese, finlandese e italiano e salvate localmente. La traduzione richiede internet e invia il testo a un servizio di traduzione esterno.', translatingContent:'Traduzione del contenuto della ricetta…', translationUnavailable:'Alcune traduzioni non sono ancora disponibili; il testo originale viene conservato e Recipe Vault riproverà più tardi.', translationsUpdated:'Traduzioni aggiornate', appearance:'ASPETTO', theme:'Tema', colorTheme:'Tema colore', darkHelp:'La modalità scura usa uno sfondo nero puro.', system:'Sistema', dark:'Scuro', light:'Chiaro', data:'DATI', backupRestore:'Backup e ripristino', backupHelp:'I dati sono salvati localmente su questo dispositivo. Il JSON compatto contiene ricette e impostazioni; lo ZIP completo include anche foto, PDF e video.', includeMedia:'Includi file multimediali', includeMediaHelp:'Include foto, PDF e video salvati; il backup può diventare grande.', exportJson:'Esporta JSON compatto', importJson:'Importa JSON', app:'APP', installVault:'Installa Recipe Vault', installHelp:'Installalo nella schermata Home per usarlo come app e importare dal menu Condividi di Android.', installApp:'Installa app', installed:'Installata', shareHelp:'Dopo l’installazione, foto, video e PDF di ricette scaricati possono essere condivisi con Recipe Vault dal normale menu Condividi di Android nei browser supportati.', reset:'RESET', clearData:'Cancella dati app', deleteAll:'Elimina tutte le ricette e le liste',
     save:'Salva', reviewRecipe:'Controlla ricetta', editRecipe:'Modifica ricetta', title:'Titolo', servings:'Porzioni', servingsPlaceholder:'es. 4', prepTime:'Preparazione', prepTimePlaceholder:'es. 30 min', cookBakeTime:'Cottura / forno', cookBakeTimePlaceholder:'es. 30 min', restRiseTime:'Riposo / lievitazione', restRiseTimePlaceholder:'es. 3 h 40 min', totalTime:'Tempo totale', totalTimePlaceholder:'es. 4 h 40 min', ovenTemperature:'Forno', ovenTemperaturePlaceholder:'es. 180°C / 350°F', category:'Categoria', categoryPlaceholder:'Cena, dolci…', tags:'Tag', tagsPlaceholder:'Italiano, vegetariano, veloce…', ingredients:'Ingredienti', ingredientsPlaceholder:'Un ingrediente per riga', steps:'Procedimento', stepsPlaceholder:'Un passaggio per riga', notes:'Note / informazioni extra', notesPlaceholder:'Consigli, sostituzioni, conservazione o altre informazioni non adatte a ingredienti o procedimento', sourceUrl:'URL fonte', deleteRecipe:'Elimina ricetta', addToShopping:'Aggiungi alla spesa', cancel:'Annulla', delete:'Elimina', source:'Fonte', optional:'facoltativo', noIngredients:'Nessun ingrediente riconosciuto.', noSteps:'Nessun passaggio riconosciuto.', originalVideo:'Video originale', originalPdf:'PDF originale', openStoredPdf:'Apri PDF salvato ↗', checkWhatIHave:'Controlla cosa ho', alreadyAtHome:'Già a casa', noIngredientsAvailable:'Nessun ingrediente disponibile.',
     all:'Tutti', match:'corrispondenza', ingredientSingular:'ingrediente', ingredientPlural:'ingredienti', atHomeLower:'a casa', available:'disponibili', recipeSingular:'ricetta', recipePlural:'ricette', ranked:'ordinate', itemSingular:'articolo', itemPlural:'articoli', from:'Da', manualItems:'+ articoli manuali', manualLower:'manuale', movedToPantry:'spostato in dispensa', recipeSaved:'Ricetta salvata', recipeDeleted:'Ricetta eliminata', backupExported:'Backup esportato', backupRestored:'Backup ripristinato',
     textSource:'Testo', webSource:'Web', photoSource:'Foto', pdfSource:'PDF', videoSource:'Video', manualSource:'Manuale', sharedSource:'Condiviso', servingsUpper:'PORZIONI', pasteFirst:'Incolla prima una ricetta', parsingText:'Analisi del testo…', parsedReview:'Ricetta analizzata — controlla prima di salvare', pasteLinkFirst:'Incolla prima un link', readingWebsite:'Lettura del sito…', websiteRead:'Sito letto — controlla la ricetta estratta', linkFailed:'Impossibile leggere il link. Scarica/condividi il file oppure incolla il testo della ricetta.', loadingPdf:'Caricamento lettore PDF…', loadingOcr:'Caricamento OCR…', sharedFailed:'Impossibile importare l’elemento condiviso', buildingBackup:'Creazione backup…', readingBackup:'Lettura backup…', restoreBackup:'Ripristinare il backup?', restoreBackupText:'Questo sostituirà le ricette, la dispensa e la lista della spesa attualmente salvate nell’app.', restore:'Ripristina', backupImportFailed:'Impossibile importare il backup', deleteRecipeQ:'Eliminare la ricetta?', deleteRecipeText:'e i relativi file sorgente salvati verranno eliminati da questo dispositivo.', deleteAllQ:'Eliminare tutti i dati dell’app?', deleteAllText:'Questo elimina definitivamente tutte le ricette, i file sorgente, la dispensa e la lista della spesa salvati in questo browser.', deleteEverything:'Elimina tutto', deletedAll:'Tutti i dati locali sono stati eliminati', browserInstall:'Usa il menu del browser → Installa app / Aggiungi alla schermata Home', appStartFailed:'Recipe Vault non si è avviata', noVideoText:'Non è stato rilevato testo di ricetta leggibile nei fotogrammi campionati. Aggiungi ingredienti e procedimento manualmente durante il controllo.', recipesSaved:'ricette salvate localmente.', storageUsed:'Archiviazione browser:', used:'usati', ofAbout:'su circa', ingredientsAdded:'ingredienti aggiunti', importingFirst:'Importazione del primo file', measurementsEyebrow:'MISURE', measurements:'Misure', measurementSystem:'Sistema di misura', measurementHelp:'Passa tra misure metriche e statunitensi. Le quantità originali importate restano salvate senza modifiche.', metric:'Metrico', usCustomary:'USA', measurementChanged:'Sistema di misura cambiato', approx:'circa', description:'Descrizione', descriptionPlaceholder:'Breve descrizione della ricetta', recipeType:'Tipo', cuisine:'Cucina', dietary:'Dieta', traits:'Caratteristiche', addSection:'+ Sezione', addIngredient:'+ Ingrediente', addStep:'+ Passaggio', equipment:'Attrezzatura', nutrition:'Valori nutrizionali', exportFullZip:'Esporta ZIP completo', importBackup:'Importa backup', importQuality:'Qualità importazione', qualityGood:'Buona', qualityReview:'Da controllare', qualityPoor:'Scarsa', readyToMake:'Pronta da cucinare', missingMain:'Mancano ingredienti principali', missingStaples:'Mancano solo ingredienti base', duplicateFound:'Questa ricetta esiste già. Premi OK per aggiornare la ricetta esistente oppure Annulla per creare una copia.', sectionName:'Nome sezione', quantity:'Qtà', unitLabel:'Unità', ingredientName:'Ingrediente', ingredientNote:'Nota', qualityClean:'Nessun problema strutturale rilevato.', autoRecovered:'Recuperato automaticamente', typePlaceholder:'Pasta, zuppa, dolce…', cuisinePlaceholder:'Italiana, finlandese…', dietaryPlaceholder:'Vegetariana, vegana…', traitsPlaceholder:'Veloce, facile…', equipmentPlaceholder:'Un elemento per riga', nutritionPlaceholder:'Valori nutrizionali', issueTitleMissing:'Il titolo non è stato rilevato.', issueTitleSpacing:'Il titolo contiene spaziatura sospetta.', issueFewIngredients:'Sono stati rilevati pochissimi ingredienti.', issueNoSteps:'Non sono stati rilevati passaggi di preparazione.', issueIngredientSpacing:'{count} righe degli ingredienti contengono spaziatura sospetta.', issueStepImbalance:'Il numero di passaggi è insolitamente alto rispetto agli ingredienti.', issueServingsMissing:'Porzioni/resa non rilevate.', issueTempMissing:'Nelle istruzioni compare una temperatura del forno ma il campo Forno è vuoto.', issueTotalTooShort:'Il tempo totale è più breve della somma dei tempi parziali.'
@@ -167,6 +169,48 @@ function t(key, vars={}) {
   let out=(I18N[lang]&&I18N[lang][key]) || I18N.en[key] || key;
   for(const [k,v] of Object.entries(vars)) out=out.replaceAll(`{${k}}`,String(v));
   return out;
+}
+
+function currentRecipeView(recipe,lang=state.language||'en') { return localizedRecipe(recipe,lang); }
+function currentText(value,lang=state.language||'en') { return localizedText(value,lang,state.textTranslations||{}); }
+async function ensureSharedTextTranslation(value,fallbackLanguage=state.language||'en') {
+  const text=String(value||'').trim();if(!text)return null;
+  state.textTranslations=state.textTranslations&&typeof state.textTranslations==='object'?state.textTranslations:{};
+  const key=textTranslationKey(text),existing=state.textTranslations[key];
+  if(existing && SUPPORTED_LANGUAGES.every(lang=>existing.values?.[lang])) return existing;
+  const entry=await makeTextTranslationEntry(text,fallbackLanguage);
+  state.textTranslations[key]=entry;return entry;
+}
+function syncRecipeTranslationsToTextCache(recipe){
+  if(!recipe?.translations)return;
+  state.textTranslations=state.textTranslations&&typeof state.textTranslations==='object'?state.textTranslations:{};
+  const source=recipe.sourceLanguage||state.language||'en';
+  (recipe.ingredients||[]).forEach((ing,idx)=>{
+    if(!ing?.name)return;const values={};
+    for(const lang of SUPPORTED_LANGUAGES){const v=lang===source?ing.name:recipe.translations?.[lang]?.ingredients?.[idx]?.name;if(v)values[lang]=v;}
+    state.textTranslations[textTranslationKey(ing.name)]=translationEntryFromValues(ing.name,source,values);
+  });
+}
+function recipeSearchText(recipe){
+  const parts=[recipe.title,recipe.description,recipe.type||recipe.category,(recipe.cuisine||[]).join(' '),(recipe.dietary||[]).join(' '),(recipe.traits||[]).join(' '),(recipe.ingredients||[]).filter(i=>i.kind!=='group').map(i=>i.name).join(' '),recipe.notes];
+  for(const lang of SUPPORTED_LANGUAGES){const tr=recipe.translations?.[lang];if(!tr)continue;parts.push(tr.title,tr.description,tr.type,(tr.cuisine||[]).join(' '),(tr.dietary||[]).join(' '),(tr.traits||[]).join(' '),(tr.ingredients||[]).map(i=>i?.name||'').join(' '),(tr.steps||[]).join(' '),tr.notes);}
+  return parts.filter(Boolean).join(' ');
+}
+let translationBackfillRunning=false;
+async function backfillTranslations(){
+  if(translationBackfillRunning)return;translationBackfillRunning=true;let changed=false;
+  try{
+    for(const recipe of recipes){
+      const source=recipe.sourceLanguage||'';const complete=SUPPORTED_LANGUAGES.every(lang=>lang===source||recipe.translations?.[lang]) && !(recipe.translationMissing||[]).length;
+      if(complete){syncRecipeTranslationsToTextCache(recipe);continue;}
+      await ensureRecipeTranslations(recipe,recipe.sourceLanguage||state.language||'en');syncRecipeTranslationsToTextCache(recipe);await idbPut('recipes',recipe);changed=true;
+      if((recipe.translationMissing||[]).length) break;
+      await new Promise(resolve=>setTimeout(resolve,120));
+    }
+    const simple=[...(state.pantry||[]),...(state.available||[]),...(state.shopping||[]).map(x=>x?.name).filter(Boolean)];
+    for(const text of simple){const key=textTranslationKey(text);if(!SUPPORTED_LANGUAGES.every(lang=>state.textTranslations?.[key]?.values?.[lang])){const entry=await ensureSharedTextTranslation(text,state.language||'en');changed=true;if((entry?.missing||[]).length)break;await new Promise(resolve=>setTimeout(resolve,80));}}
+    if(changed){await saveState();await renderAll();if(activeRecipeId&&$('#recipeDialog')?.open)await openRecipe(activeRecipeId);}
+  }catch(err){console.warn('Translation backfill paused',err);}finally{translationBackfillRunning=false;}
 }
 function applyLanguage() {
   const lang=state.language || 'en';
@@ -209,6 +253,8 @@ async function loadAll() {
   if(!Array.isArray(state.pantry)) state.pantry=[];
   if(!Array.isArray(state.available)) state.available=[];
   if(!Array.isArray(state.shopping)) state.shopping=[];
+  if(!state.textTranslations || typeof state.textTranslations!=='object' || Array.isArray(state.textTranslations)) state.textTranslations={};
+  for(const recipe of recipes) syncRecipeTranslationsToTextCache(recipe);
   // The library should always open showing the complete collection.
   state.activeRecipeFilter = 'All';
   if(!['recent','title','favorite'].includes(state.recipeSort)) state.recipeSort='recent';
@@ -235,6 +281,7 @@ async function setLanguage(lang) {
   await saveState();
   applyLanguage();
   toast(lang==='fi'?'Kieli vaihdettu':lang==='it'?'Lingua cambiata':'Language changed');
+  backfillTranslations();
 }
 async function setMeasurementSystem(system) {
   if (!['metric','us'].includes(system)) return;
@@ -423,16 +470,16 @@ function levenshtein(a,b) {
   return prev[b.length];
 }
 function ingredientSimilarity(a,b) {
-  const x = canonicalIngredient(a), y = canonicalIngredient(b);
-  if (!x || !y) return 0;
-  if (x === y) return 1;
-  if ((x.includes(y) || y.includes(x)) && Math.min(x.length,y.length) >= 4) return .91;
-  const xt = new Set(x.split(' ')), yt = new Set(y.split(' '));
-  const common = [...xt].filter(t => yt.has(t)).length;
-  const union = new Set([...xt,...yt]).size;
-  const tokenScore = union ? common/union : 0;
-  const editScore = 1 - levenshtein(x,y)/Math.max(x.length,y.length);
-  return Math.max(tokenScore, editScore * .92);
+  const av=textVariants(String(a||''),state.textTranslations||{}), bv=textVariants(String(b||''),state.textTranslations||{});
+  let best=0;
+  for(const aa of av)for(const bb of bv){
+    const x=canonicalIngredient(aa),y=canonicalIngredient(bb);if(!x||!y)continue;
+    if(x===y)return 1;
+    if((x.includes(y)||y.includes(x))&&Math.min(x.length,y.length)>=4){best=Math.max(best,.91);continue;}
+    const xt=new Set(x.split(' ')),yt=new Set(y.split(' '));const common=[...xt].filter(t=>yt.has(t)).length;const union=new Set([...xt,...yt]).size;
+    const tokenScore=union?common/union:0;const editScore=1-levenshtein(x,y)/Math.max(x.length,y.length);best=Math.max(best,tokenScore,editScore*.92);
+  }
+  return best;
 }
 function fuzzyHas(available, ingredient) {
   return available.some(a => ingredientSimilarity(a, ingredient.name || ingredient) >= .67);
@@ -628,10 +675,19 @@ function convertQuantityBetween(value, fromUnit, toUnit) {
   if(VOLUME_TO_ML[fromUnit]!=null && VOLUME_TO_ML[toUnit]!=null) return value*VOLUME_TO_ML[fromUnit]/VOLUME_TO_ML[toUnit];
   return null;
 }
+const UNIT_DISPLAY={
+  fi:{tbsp:'rkl',tsp:'tl',cup:'cup',pinch:'ripaus',can:'prk',package:'pkt',slice:'viipale',clove:'kynsi',bunch:'nippu',piece:'kpl',pot:'ruukku',stick:'tanko',handful:'kourallinen'},
+  it:{tbsp:'cucchiaio',tsp:'cucchiaino',cup:'tazza',pinch:'pizzico',can:'lattina',package:'confezione',slice:'fetta',clove:'spicchio',bunch:'mazzetto',piece:'pezzo',pot:'vasetto',stick:'bastoncino',handful:'manciata'}
+};
+function localizeQtyUnitText(text=''){
+  const lang=state.language||'en';if(lang==='en')return text;
+  const map=UNIT_DISPLAY[lang]||{};
+  return String(text).replace(/\b(mg|kg|g|ml|cl|dl|l|tbsp|tsp|cup|oz|lb|pinch|can|package|slice|clove|bunch|piece|pot|stick|handful)\b$/i,(m)=>map[m.toLowerCase()]||m);
+}
 function displayQty(item) {
   const converted=convertIngredientAmount(item);
-  if(!converted) return formatQty(item);
-  return `${converted.converted && converted.approx?'≈ ':''}${converted.text}`;
+  const raw=converted?`${converted.converted && converted.approx?'≈ ':''}${converted.text}`:formatQty(item);
+  return localizeQtyUnitText(raw);
 }
 function displayIngredientLine(item) {
   if(!item) return '';
@@ -1241,6 +1297,12 @@ async function renderAll() {
   renderPantry();
   renderStorageInfo();
 }
+function localizedTaxonomyLabel(value){
+  for(const r of recipes){const vr=currentRecipeView(r);if((r.type||r.category)===value)return vr.type||value;
+    for(const field of ['cuisine','dietary','traits']){const idx=(r[field]||[]).indexOf(value);if(idx>=0)return vr[field]?.[idx]||value;}
+  }
+  return displayTaxonomy(value);
+}
 function renderRecipeFilters() {
   const counts = new Map();
   for (const r of recipes) {
@@ -1249,7 +1311,7 @@ function renderRecipeFilters() {
   }
   const filters = ['All','Favorites', ...[...counts.keys()].sort()];
   if (!filters.includes(state.activeRecipeFilter)) state.activeRecipeFilter = 'All';
-  const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||displayTaxonomy(f);
+  const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||localizedTaxonomyLabel(f);
   $('#recipeFilters').innerHTML = filters.map(f => `<button class="filter-chip ${state.activeRecipeFilter===f?'active':''}" data-filter="${escapeHtml(f)}">${escapeHtml(filterText(f))}</button>`).join('');
   $$('[data-filter]').forEach(b => b.onclick = () => { state.activeRecipeFilter=b.dataset.filter; saveState(); renderRecipeFilters(); renderRecipes(); });
 }
@@ -1261,30 +1323,31 @@ function filteredRecipes() {
     const tax=[r.type||r.category,...(r.cuisine||[]),...(r.dietary||[]),...(r.traits||[])];
     if (filter !== 'All' && filter !== 'Favorites' && sourceLabel(r)!==filter && !tax.includes(filter)) return false;
     if (!q) return true;
-    const hay = normalizeText([r.title,r.description,r.type||r.category,(r.cuisine||[]).join(' '),(r.dietary||[]).join(' '),(r.traits||[]).join(' '),(r.ingredients||[]).filter(i=>i.kind!=='group').map(i=>i.name).join(' '),r.notes].join(' '));
+    const hay = normalizeText(recipeSearchText(r));
     return q.split(' ').every(token => hay.includes(token));
   });
   const sort=state.recipeSort||'recent';
-  if(sort==='title') out.sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),state.language||'en',{sensitivity:'base',numeric:true}));
+  if(sort==='title') out.sort((a,b)=>String(currentRecipeView(a).title||'').localeCompare(String(currentRecipeView(b).title||''),state.language||'en',{sensitivity:'base',numeric:true}));
   else if(sort==='favorite') out.sort((a,b)=>Number(Boolean(b.favorite))-Number(Boolean(a.favorite)) || recipeAddedAt(b)-recipeAddedAt(a));
   else out.sort((a,b)=>recipeAddedAt(b)-recipeAddedAt(a));
   return out;
 }
 async function recipeCardHtml(r, match=null) {
+  const vr=currentRecipeView(r);
   let img = '';
   if (r.coverMediaId) img = await getMediaUrl(r.coverMediaId);
   if (!img) img = r.imageUrl || '';
   if (!img && r.thumbnailId) img = await getMediaUrl(r.thumbnailId);
   if (!img && r.mediaId && (r.mediaType||'').startsWith('image/')) img = await getMediaUrl(r.mediaId);
-  if (!img) img=defaultCoverSvg(r);
-  const tags = [r.type||r.category, ...(r.cuisine||[]), ...(r.dietary||[]), ...(r.traits||[])].filter(Boolean).slice(0,3).map(displayTaxonomy);
+  if (!img) img=defaultCoverSvg(vr);
+  const tags = [vr.type||vr.category, ...(vr.cuisine||[]), ...(vr.dietary||[]), ...(vr.traits||[])].filter(Boolean).slice(0,3).map(displayTaxonomy);
   return `<article class="recipe-card">
     ${match ? `<div class="match-badge match-${match.status}">${escapeHtml(matchStatusLabel(match))} · ${Math.round(match.score*100)}%</div>`:''}
     ${r.favorite ? `<button class="favorite-dot" data-fav="${r.id}" aria-label="Remove favorite">★</button>`:''}
     <button class="card-hit" data-recipe="${r.id}">
       ${img ? `<img class="recipe-thumb" src="${escapeHtml(img)}" alt="" loading="lazy">` : `<div class="recipe-thumb placeholder">⌑</div>`}
       <div class="recipe-card-body">
-        <h3>${escapeHtml(r.title)}</h3>
+        <h3>${escapeHtml(vr.title)}</h3>
         <div class="card-meta">
           <span>${(r.ingredients||[]).filter(i=>i.kind!=='group').length} ${((r.ingredients||[]).filter(i=>i.kind!=='group').length===1?t('ingredientSingular'):t('ingredientPlural'))}</span>
           <span>·</span><span>${escapeHtml(sourceDisplay(r))}</span>
@@ -1327,7 +1390,7 @@ async function renderRecipes() {
     try { return await recipeCardHtml(r); }
     catch (err) {
       console.warn('Could not render recipe card', r?.id, err);
-      return `<article class="recipe-card"><button class="card-hit" data-recipe="${escapeHtml(r?.id||'')}"><div class="recipe-thumb placeholder">⌑</div><div class="recipe-card-body"><h3>${escapeHtml(r?.title||'Untitled recipe')}</h3></div></button></article>`;
+      return `<article class="recipe-card"><button class="card-hit" data-recipe="${escapeHtml(r?.id||'')}"><div class="recipe-thumb placeholder">⌑</div><div class="recipe-card-body"><h3>${escapeHtml(currentRecipeView(r||{}).title||'Untitled recipe')}</h3></div></button></article>`;
     }
   }));
   if (generation !== recipeRenderGeneration) return; // ignore stale async renders
@@ -1346,7 +1409,7 @@ async function toggleFavorite(id) {
 }
 
 function renderAvailable() {
-  $('#availableChips').innerHTML = state.available.map((x,i)=>`<span class="chip">${escapeHtml(x)}<button data-remove-available="${i}">×</button></span>`).join('');
+  $('#availableChips').innerHTML = state.available.map((x,i)=>`<span class="chip">${escapeHtml(currentText(x))}<button data-remove-available="${i}">×</button></span>`).join('');
   $$('[data-remove-available]').forEach(b=>b.onclick=async()=>{state.available.splice(Number(b.dataset.removeAvailable),1);await saveState();renderAvailable();renderMatches();});
 }
 function allAvailable() {
@@ -1384,7 +1447,7 @@ async function renderMatches() {
 }
 
 function renderPantry() {
-  const html = state.pantry.map((x,i)=>`<span class="chip">${escapeHtml(x)}<button data-remove-pantry="${i}">×</button></span>`).join('') || `<span class="muted" style="font-size:12px">${escapeHtml(t('nothingSaved'))}</span>`;
+  const html = state.pantry.map((x,i)=>`<span class="chip">${escapeHtml(currentText(x))}<button data-remove-pantry="${i}">×</button></span>`).join('') || `<span class="muted" style="font-size:12px">${escapeHtml(t('nothingSaved'))}</span>`;
   if ($('#pantryChips')) $('#pantryChips').innerHTML = html;
   if ($('#cookPantryChips')) $('#cookPantryChips').innerHTML = html;
   $$('[data-remove-pantry]').forEach(b=>b.onclick=async()=>{state.pantry.splice(Number(b.dataset.removePantry),1);await saveState();renderPantry();renderMatches();});
@@ -1395,15 +1458,22 @@ function addUniqueIngredient(list, value) {
   if (list.some(x=>ingredientSimilarity(x,value)>=.9)) return false;
   list.push(value); return true;
 }
+async function addUniqueTranslatedIngredient(list,value,fallbackLanguage=state.language||'en') {
+  const added=addUniqueIngredient(list,String(value||''));if(!added)return false;
+  await ensureSharedTextTranslation(String(value||'').trim(),fallbackLanguage);return true;
+}
 
-function mergeShoppingIngredient(ing, sourceRecipeId='', manual=false) {
-  const key = canonicalIngredient(ing.name || ing.raw || '');
+async function mergeShoppingIngredient(ing, sourceRecipeId='', manual=false) {
+  const originalName=ing.name || ing.raw || '';
+  const key = canonicalIngredient(originalName);
   if (!key) return;
+  const sourceRecipe=sourceRecipeId?recipes.find(r=>r.id===sourceRecipeId):null;
+  await ensureSharedTextTranslation(originalName,sourceRecipe?.sourceLanguage||state.language||'en');
   const ingUnit=ing.unitCanonical||canonicalUnit(ing.unit||'')||ing.unit||'';
-  let existing = state.shopping.find(x => canonicalIngredient(x.name)===key && (x.unitCanonical||canonicalUnit(x.unit||'')||x.unit||'')===ingUnit && !x.checked);
+  let existing = state.shopping.find(x => ingredientSimilarity(x.name,originalName)>=.9 && (x.unitCanonical||canonicalUnit(x.unit||'')||x.unit||'')===ingUnit && !x.checked);
   if (!existing && Number.isFinite(ing.qty)) {
     existing = state.shopping.find(x => {
-      if(x.checked || canonicalIngredient(x.name)!==key || !Number.isFinite(x.qty)) return false;
+      if(x.checked || ingredientSimilarity(x.name,originalName)<.9 || !Number.isFinite(x.qty)) return false;
       const exUnit=x.unitCanonical||canonicalUnit(x.unit||'')||x.unit||'';
       return convertQuantityBetween(ing.qty,ingUnit,exUnit)!=null;
     });
@@ -1420,7 +1490,7 @@ function mergeShoppingIngredient(ing, sourceRecipeId='', manual=false) {
     } else if (!existing.qtyText && ing.qtyText) existing.qtyText = ing.qtyText;
     existing.sources = [...new Set([...(existing.sources||[]), ...(sourceRecipeId?[sourceRecipeId]:[])])];
   } else {
-    state.shopping.push({ id:uid('shop'), name:ing.name || ing.raw, qty:Number.isFinite(ing.qty)?ing.qty:null, qtyText:ing.qtyText||'', unit:ing.unit||'', unitCanonical:ingUnit, checked:false, manual, sources:sourceRecipeId?[sourceRecipeId]:[], createdAt:Date.now() });
+    state.shopping.push({ id:uid('shop'), name:originalName, qty:Number.isFinite(ing.qty)?ing.qty:null, qtyText:ing.qtyText||'', unit:ing.unit||'', unitCanonical:ingUnit, checked:false, manual, sources:sourceRecipeId?[sourceRecipeId]:[], createdAt:Date.now() });
   }
 }
 function renderShopping() {
@@ -1433,25 +1503,29 @@ function renderShopping() {
   $('#shoppingList').innerHTML=items.map(item=>{
     const qty=displayQty(item);
     const shownQty=qty==='—'?'':qty;
-    const sourceNames=(item.sources||[]).map(id=>recipes.find(r=>r.id===id)?.title).filter(Boolean);
+    const localName=currentText(item.name);
+    const sourceNames=(item.sources||[]).map(id=>{const r=recipes.find(x=>x.id===id);return r?currentRecipeView(r).title:'';}).filter(Boolean);
     return `<div class="shopping-item ${item.checked?'checked':''}">
-      <input class="shopping-check" type="checkbox" ${item.checked?'checked':''} data-shop-check="${item.id}" aria-label="Check ${escapeHtml(item.name)}">
-      <div><div class="shopping-name">${escapeHtml(item.name)}</div><div class="shopping-sub">${shownQty?`<span>${escapeHtml(shownQty)}</span>`:''}${sourceNames.slice(0,2).map(n=>`<span>· ${escapeHtml(n)}</span>`).join('')}${item.manual?`<span>· ${escapeHtml(t('manualLower'))}</span>`:''}</div></div>
+      <input class="shopping-check" type="checkbox" ${item.checked?'checked':''} data-shop-check="${item.id}" aria-label="Check ${escapeHtml(localName)}">
+      <div><div class="shopping-name">${escapeHtml(localName)}</div><div class="shopping-sub">${shownQty?`<span>${escapeHtml(shownQty)}</span>`:''}${sourceNames.slice(0,2).map(n=>`<span>· ${escapeHtml(n)}</span>`).join('')}${item.manual?`<span>· ${escapeHtml(t('manualLower'))}</span>`:''}</div></div>
       <div class="shopping-actions"><button class="home-btn" data-shop-home="${item.id}" title="I have this at home">⌂</button><button data-shop-delete="${item.id}" title="Delete">×</button></div>
     </div>`;
   }).join('');
   $$('[data-shop-check]').forEach(b=>b.onchange=async()=>{const i=state.shopping.find(x=>x.id===b.dataset.shopCheck);if(i)i.checked=b.checked;await saveState();renderShopping();});
   $$('[data-shop-delete]').forEach(b=>b.onclick=async()=>{state.shopping=state.shopping.filter(x=>x.id!==b.dataset.shopDelete);await saveState();renderShopping();});
-  $$('[data-shop-home]').forEach(b=>b.onclick=async()=>{const i=state.shopping.find(x=>x.id===b.dataset.shopHome);if(!i)return;addUniqueIngredient(state.pantry,i.name);state.shopping=state.shopping.filter(x=>x.id!==i.id);await saveState();renderShopping();renderPantry();renderMatches();toast(`${i.name} ${t('movedToPantry')}`);});
+  $$('[data-shop-home]').forEach(b=>b.onclick=async()=>{const i=state.shopping.find(x=>x.id===b.dataset.shopHome);if(!i)return;addUniqueIngredient(state.pantry,i.name);state.shopping=state.shopping.filter(x=>x.id!==i.id);await saveState();renderShopping();renderPantry();renderMatches();toast(`${currentText(i.name)} ${t('movedToPantry')}`);});
 }
-
+function localizeDurationValue(value=''){
+  const s=String(value||'').trim();if(!s||state.language==='en')return s;
+  return s.replace(/\b(hours?|hrs?)\b/gi,'h').replace(/\b(minutes?|mins?)\b/gi,'min').replace(/\bseconds?|secs?\b/gi,state.language==='fi'?'s':'sec');
+}
 function recipeFactItems(r) {
   return [
     [t('servings'),r.servings],
-    [t('prepTime'),r.prepTime],
-    [t('cookBakeTime'),r.cookTime],
-    [t('restRiseTime'),r.restTime],
-    [t('totalTime'),r.totalTime],
+    [t('prepTime'),localizeDurationValue(r.prepTime)],
+    [t('cookBakeTime'),localizeDurationValue(r.cookTime)],
+    [t('restRiseTime'),localizeDurationValue(r.restTime)],
+    [t('totalTime'),localizeDurationValue(r.totalTime)],
     [t('ovenTemperature'),r.temperature]
   ].filter(([,v])=>cleanInlineSpacing(v||''));
 }
@@ -1462,6 +1536,7 @@ function renderRecipeFacts(r) {
 }
 async function openRecipe(id) {
   const r=recipes.find(x=>x.id===id); if(!r)return;
+  const vr=currentRecipeView(r);
   activeRecipeId=id;
   $('#favoriteRecipeBtn').textContent=r.favorite?'★':'☆';
   let hero='';
@@ -1469,7 +1544,7 @@ async function openRecipe(id) {
   if (!hero) hero=r.imageUrl||'';
   if (!hero && r.thumbnailId) hero=await getMediaUrl(r.thumbnailId);
   if (!hero && r.mediaId && (r.mediaType||'').startsWith('image/')) hero=await getMediaUrl(r.mediaId);
-  if (!hero) hero=defaultCoverSvg(r);
+  if (!hero) hero=defaultCoverSvg(vr);
   let sourceMedia='';
   if (r.mediaId && ((r.mediaType||'').startsWith('video/') || r.mediaType==='application/pdf')) {
     const url=await getMediaUrl(r.mediaId);
@@ -1480,17 +1555,17 @@ async function openRecipe(id) {
     ${hero?`<img class="recipe-hero" src="${escapeHtml(hero)}" alt="">`:''}
     <div class="recipe-detail-body">
       <div class="eyebrow">${escapeHtml(sourceDisplay(r).toUpperCase())}${r.author?` · ${escapeHtml(r.author)}`:''}</div>
-      <h2>${escapeHtml(r.title)}</h2>
-      ${renderRecipeFacts(r)}
-      ${r.description?`<p class="recipe-description">${escapeHtml(r.description)}</p>`:''}
-      <div class="detail-tags">${[r.type||r.category,...(r.cuisine||[]),...(r.dietary||[]),...(r.traits||[])].filter(Boolean).map(displayTaxonomy).map(x=>`<span class="mini-tag">${escapeHtml(x)}</span>`).join('')}</div>
+      <h2>${escapeHtml(vr.title)}</h2>
+      ${renderRecipeFacts(vr)}
+      ${vr.description?`<p class="recipe-description">${escapeHtml(vr.description)}</p>`:''}
+      <div class="detail-tags">${[vr.type||vr.category,...(vr.cuisine||[]),...(vr.dietary||[]),...(vr.traits||[])].filter(Boolean).map(displayTaxonomy).map(x=>`<span class="mini-tag">${escapeHtml(x)}</span>`).join('')}</div>
       <div class="detail-actions"><button class="primary" id="detailShopBtn">${escapeHtml(t('addToShopping'))}</button><button class="secondary" id="detailPantryMatchBtn">${escapeHtml(t('checkWhatIHave'))}</button></div>
       <div class="detail-measurements"><span>${escapeHtml(t('measurements'))}</span><div class="language-switch" role="group"><button type="button" class="language-choice" data-measurement="metric">${escapeHtml(t('metric'))}</button><button type="button" class="language-choice" data-measurement="us">${escapeHtml(t('usCustomary'))}</button></div></div>
-      <div class="detail-section"><h3>${escapeHtml(t('ingredients'))}</h3><ul class="ingredient-list">${(r.ingredients||[]).map(i=>i.kind==='group'?`<li class="ingredient-group"><strong>${escapeHtml(i.name)}</strong></li>`:`<li><span class="ingredient-qty">${escapeHtml(displayQty(i))}</span><span>${escapeHtml(i.name)}${i.note?` <small class="muted">(${escapeHtml(i.note)})</small>`:''}${i.optional?` <small class="muted">(${escapeHtml(t('optional'))})</small>`:''}</span></li>`).join('') || `<li class="muted">${escapeHtml(t('noIngredients'))}</li>`}</ul></div>
-      <div class="detail-section"><h3>${escapeHtml(t('steps'))}</h3><ol class="step-list">${(r.steps||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('') || `<li class="muted">${escapeHtml(t('noSteps'))}</li>`}</ol></div>
-      ${(r.equipment||[]).length?`<div class="detail-section"><h3>${escapeHtml(t('equipment'))}</h3><ul class="ingredient-list">${r.equipment.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
-      ${r.notes?`<div class="detail-section"><h3>${escapeHtml(t('notes'))}</h3><div class="muted" style="white-space:pre-wrap;line-height:1.5">${escapeHtml(r.notes)}</div></div>`:''}
-      ${r.nutrition?`<div class="detail-section"><h3>${escapeHtml(t('nutrition'))}</h3><div class="muted nutrition-text">${escapeHtml(r.nutrition)}</div></div>`:''}
+      <div class="detail-section"><h3>${escapeHtml(t('ingredients'))}</h3><ul class="ingredient-list">${(vr.ingredients||[]).map(i=>i.kind==='group'?`<li class="ingredient-group"><strong>${escapeHtml(i.name)}</strong></li>`:`<li><span class="ingredient-qty">${escapeHtml(displayQty(i))}</span><span>${escapeHtml(i.name)}${i.note?` <small class="muted">(${escapeHtml(i.note)})</small>`:''}${i.optional?` <small class="muted">(${escapeHtml(t('optional'))})</small>`:''}</span></li>`).join('') || `<li class="muted">${escapeHtml(t('noIngredients'))}</li>`}</ul></div>
+      <div class="detail-section"><h3>${escapeHtml(t('steps'))}</h3><ol class="step-list">${(vr.steps||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('') || `<li class="muted">${escapeHtml(t('noSteps'))}</li>`}</ol></div>
+      ${(vr.equipment||[]).length?`<div class="detail-section"><h3>${escapeHtml(t('equipment'))}</h3><ul class="ingredient-list">${vr.equipment.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div>`:''}
+      ${vr.notes?`<div class="detail-section"><h3>${escapeHtml(t('notes'))}</h3><div class="muted" style="white-space:pre-wrap;line-height:1.5">${escapeHtml(vr.notes)}</div></div>`:''}
+      ${vr.nutrition?`<div class="detail-section"><h3>${escapeHtml(t('nutrition'))}</h3><div class="muted nutrition-text">${escapeHtml(vr.nutrition)}</div></div>`:''}
       ${sourceMedia}
       ${r.source?.url?`<div class="detail-section"><h3>${escapeHtml(t('source'))}</h3><a class="source-link" href="${escapeHtml(r.source.url)}" target="_blank" rel="noopener">${escapeHtml(r.source.url)} ↗</a></div>`:''}
     </div>`;
@@ -1501,10 +1576,12 @@ async function openRecipe(id) {
 }
 function openShoppingPicker(recipeId) {
   const r=recipes.find(x=>x.id===recipeId); if(!r)return;
+  const vr=currentRecipeView(r);
   pendingShoppingRecipeId=recipeId;
-  $('#shoppingIngredientPicker').innerHTML=(r.ingredients||[]).map((i,idx)=>{
+  $('#shoppingIngredientPicker').innerHTML=(vr.ingredients||[]).map((i,idx)=>{
     if(i.kind==='group') return `<div class="picker-group">${escapeHtml(i.name)}</div>`;
-    const home=fuzzyHas(state.pantry,i);
+    const original=r.ingredients?.[idx]||i;
+    const home=fuzzyHas(state.pantry,original);
     return `<label class="picker-item"><input type="checkbox" data-pick-ingredient="${idx}" ${home?'':'checked'}><span><strong>${escapeHtml(displayIngredientLine(i))}</strong>${home?`<span class="at-home-badge">${escapeHtml(t('alreadyAtHome'))}</span>`:''}</span></label>`;
   }).join('') || `<p class="muted">${escapeHtml(t('noIngredientsAvailable'))}</p>`;
   $('#shoppingDialog').showModal();
@@ -1513,6 +1590,9 @@ function openShoppingPicker(recipeId) {
 async function saveRecipe(recipe) {
   cleanRecipeRecord(recipe);
   recipe.source=recipe.source||{type:'manual'};recipe.source.sourceKey=sourceKeyFor(recipe);
+  // Translate authoritative recipe text once on save; the original source text remains untouched.
+  await ensureRecipeTranslations(recipe,recipe.sourceLanguage||state.language||'en');
+  syncRecipeTranslationsToTextCache(recipe);
   // Validation/repair metadata is derived UI state, not authoritative recipe data.
   delete recipe.importQuality;
   delete recipe.importRepairs;
@@ -1522,7 +1602,9 @@ async function saveRecipe(recipe) {
   const idx=recipes.findIndex(r=>r.id===recipe.id);
   if(idx>=0) recipes[idx]=recipe; else recipes.unshift(recipe);
   recipes.sort((a,b)=>recipeAddedAt(b)-recipeAddedAt(a));
-  renderAll();
+  await saveState();
+  await renderAll();
+  if((recipe.translationMissing||[]).length) toast(t('translationUnavailable'));
 }
 function ingredientEditorRow(i={},idx=0){
   if(i.kind==='group') return `<div class="ingredient-edit-row group-row" data-ing-row data-kind="group"><input class="ing-name" value="${escapeHtml(i.name||'')}" placeholder="${escapeHtml(t('sectionName'))}"><div class="row-actions"><button type="button" data-row-up>↑</button><button type="button" data-row-down>↓</button><button type="button" data-row-delete>×</button></div></div>`;
@@ -2118,11 +2200,11 @@ function bindEvents(){
   $('#recipeSearch').oninput=()=>renderRecipes();
   $('#recipeSort').value=state.recipeSort||'recent';
   $('#recipeSort').onchange=async e=>{state.recipeSort=e.target.value;await saveState();renderRecipes();};
-  $('#cookPantryAdd').onclick=async()=>{const input=$('#cookPantryInput');if(addUniqueIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
+  $('#cookPantryAdd').onclick=async()=>{const input=$('#cookPantryInput');if(await addUniqueTranslatedIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
   $('#cookPantryInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#cookPantryAdd').click();}};
-  $('#addAvailableIngredient').onclick=async()=>{const input=$('#availableIngredientInput');if(addUniqueIngredient(state.available,input.value)){input.value='';await saveState();renderAvailable();renderMatches();}else input.value='';};
+  $('#addAvailableIngredient').onclick=async()=>{const input=$('#availableIngredientInput');if(await addUniqueTranslatedIngredient(state.available,input.value)){input.value='';await saveState();renderAvailable();renderMatches();}else input.value='';};
   $('#availableIngredientInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#addAvailableIngredient').click();}};
-  $('#pantryAddBtn').onclick=async()=>{const input=$('#pantryInput');if(addUniqueIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
+  $('#pantryAddBtn').onclick=async()=>{const input=$('#pantryInput');if(await addUniqueTranslatedIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
   $('#pantryInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#pantryAddBtn').click();}};
 
   $$('[data-import-type]').forEach(b=>b.onclick=()=>{const type=b.dataset.importType;$$('[data-import-type]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-import-panel]').forEach(p=>p.classList.toggle('active',p.dataset.importPanel===type));});
@@ -2136,7 +2218,7 @@ function bindEvents(){
   ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
   dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 
-  $('#manualShoppingAdd').onclick=async()=>{const i=$('#manualShoppingInput');const name=i.value.trim();if(!name)return;mergeShoppingIngredient({name},'',true);i.value='';await saveState();renderShopping();};
+  $('#manualShoppingAdd').onclick=async()=>{const i=$('#manualShoppingInput');const name=i.value.trim();if(!name)return;await mergeShoppingIngredient({name},'',true);i.value='';await saveState();renderShopping();};
   $('#manualShoppingInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#manualShoppingAdd').click();}};
   $('#clearCheckedBtn').onclick=async()=>{state.shopping=state.shopping.filter(i=>!i.checked);await saveState();renderShopping();};
 
@@ -2188,6 +2270,7 @@ function bindEvents(){
     editorDraft.nutrition=cleanMultilineSpacing($('#editNutrition').value);
     editorDraft.source=editorDraft.source||{type:'manual'};editorDraft.source.url=$('#editSourceUrl').value.trim();editorDraft.source.sourceKey=editorDraft.source.url?`url:${normalizeUrl(editorDraft.source.url)}`:(editorDraft.source.fileHash?`file:${editorDraft.source.fileHash}`:(editorDraft.source.sourceKey||''));
     editorDraft.importQuality=validateRecipe(editorDraft);
+    setStatus(t('translatingContent'));
     await saveRecipe(editorDraft);$('#editorDialog').close();setStatus('',false);go('recipes');toast(t('recipeSaved'));
   });
   $('#deleteRecipeBtn').onclick=async()=>{
@@ -2196,7 +2279,7 @@ function bindEvents(){
       await deleteRecipeMedia(editorDraft);await idbDelete('recipes',editorDraft.id);recipes=recipes.filter(r=>r.id!==editorDraft.id);state.shopping=state.shopping.map(i=>({...i,sources:(i.sources||[]).filter(id=>id!==editorDraft.id)}));await saveState();$('#editorDialog').close();renderAll();toast(t('recipeDeleted'));
     }
   };
-  $('#confirmShoppingAdd').onclick=async()=>{const r=recipes.find(x=>x.id===pendingShoppingRecipeId);if(!r)return;const selected=$$('[data-pick-ingredient]:checked').map(x=>Number(x.dataset.pickIngredient));selected.forEach(idx=>mergeShoppingIngredient(r.ingredients[idx],r.id,false));await saveState();$('#shoppingDialog').close();renderShopping();toast(`${selected.length} ${t('ingredientsAdded')}`);};
+  $('#confirmShoppingAdd').onclick=async()=>{const r=recipes.find(x=>x.id===pendingShoppingRecipeId);if(!r)return;const selected=$$('[data-pick-ingredient]:checked').map(x=>Number(x.dataset.pickIngredient));for(const idx of selected)await mergeShoppingIngredient(r.ingredients[idx],r.id,false);await saveState();$('#shoppingDialog').close();renderShopping();toast(`${selected.length} ${t('ingredientsAdded')}`);};
 
   $('#exportBtn').onclick=exportBackup;
   $('#exportFullZipBtn').onclick=exportFullZip;
@@ -2206,7 +2289,7 @@ function bindEvents(){
   $$('[data-measurement]').forEach(btn=>btn.addEventListener('click',()=>setMeasurementSystem(btn.dataset.measurement)));
   document.addEventListener('change',e=>{if(e.target?.id==='languageSelect') setLanguage(e.target.value);});
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system')applyTheme();});
-  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeSort:'recent'};recipes=[];await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
+  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],textTranslations:{},theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeSort:'recent'};recipes=[];await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
 
   $('#confirmCancel').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(false);confirmResolver=null;};
   $('#confirmOk').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(true);confirmResolver=null;};
@@ -2233,13 +2316,14 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=17',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=18',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
   }
   if(matchMedia('(display-mode: standalone)').matches) $('#installBtn').textContent=t('installed');
   await handleSharedImport();
+  setTimeout(()=>backfillTranslations(),600);
 }
 
 init().catch(err=>{console.error(err);toast(t('appStartFailed'));});

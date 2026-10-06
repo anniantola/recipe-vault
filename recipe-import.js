@@ -1,4 +1,4 @@
-import { durationMinutes, normalizeUrl } from './recipe-core.js?v=17';
+import { durationMinutes, normalizeUrl } from './recipe-core.js?v=18';
 
 const clean = (value='') => String(value ?? '')
   .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g,' ')
@@ -21,6 +21,7 @@ export function createRecipeDraft(overrides={}) {
     description:'', servings:'', prepTime:'', cookTime:'', restTime:'', totalTime:'', temperature:'', author:'',
     ingredients:[], steps:[], equipment:[], notes:'', nutrition:'', favorite:false,
     source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:''},
+    sourceLanguage:'', translations:{}, translationUpdatedAt:0, translationMissing:[],
     imageUrl:'', mediaId:'', mediaType:'', thumbnailId:'', coverMediaId:'', coverPreset:'recipe',
     createdAt:now, updatedAt:now,
     ...overrides,
@@ -163,6 +164,7 @@ export function jsonLdToRecipeDraft(schema, source={}){
     description:stripMarkup(schema.description||''),
     servings:clean(yieldValue||''),prepTime,cookTime,restTime,totalTime,
     author:authorName(schema.author),
+    sourceLanguage:String(schema.inLanguage||source.inLanguage||'').toLowerCase().slice(0,2),
     ingredients:ingredientLines.map(raw=>({kind:'raw',raw})),
     steps,
     equipment:asList(schema.tool).map(x=>clean(typeof x==='string'?x:(x?.name||''))).filter(Boolean),
