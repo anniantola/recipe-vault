@@ -1,36 +1,24 @@
-# Recipe Vault v22
+# Recipe Vault v23
 
-Recipe Vault is a local-first, installable recipe library for GitHub Pages.
+A local-first recipe library PWA for GitHub Pages.
 
-## v22
+## v23 data cleanup and restore safety
 
-- Oven temperatures are normalized to compact units: e.g. `180 Celsius` / `180 degrees Celsius` → `180°C`, and `350 Fahrenheit` → `350°F`. Existing recipes are normalized on load as well as new imports/edits.
+- Keeps application version and recipe schema version separate in new backups (`appVersion`, `schemaVersion`).
+- Migrates legacy broad `Dinner` recipes when a stronger type is evident (for example spaghetti -> Pasta).
+- Translation engine v23 revalidates legacy translations against the deterministic EN/FI/IT recipe vocabulary.
+- Units are controlled vocabulary and are never sent to the generic translator.
+- Corrects ambiguous food vocabulary such as honey and orange using deterministic recipe translations.
+- Shared translation cache is now only for Pantry / temporary / Shopping text; duplicated recipe-ingredient cache entries are pruned.
+- Website import extracts WPRM/HTML author, servings, description, image and nutrition metadata when JSON-LD is unavailable.
+- Invalid nutrition fields containing only a recipe title/source URL are discarded.
+- Backup import now shows a preflight summary and offers Merge, Replace, or Cancel.
+- ZIP restore reports missing media and clears unusable media references on Replace; Merge preserves matching media already on the device when possible.
 
-- Normalizes capitalization consistently across English, Finnish, and Italian by field type without changing stored source wording.
+## Backup formats
 
-- Recipe content is multilingual, not just the interface. New/edited recipes are translated between English, Finnish and Italian when saved.
-- Recipe titles, descriptions, servings/yield text, type/cuisine/dietary/traits, ingredient section names, ingredient units/names/notes, instructions, equipment, notes and nutrition text can switch with the app language.
-- Pantry items, temporary ingredients and manual/recipe shopping-list items are translated to all three languages when added.
-- Recipe search searches the original and translated text, so a Finnish search can find an English-imported recipe after translation.
-- Pantry matching can compare stored ingredient translations across EN/FI/IT, so the same ingredient can still match when the recipe and pantry were entered in different languages.
-- The original recipe/source wording remains the authoritative saved recipe. Machine translations are stored separately; unchanged fields keep their existing translations when a recipe is edited.
-- Existing v17 and older recipes/items are backfilled in the background; if translation is temporarily unavailable, the original text is shown and Recipe Vault retries later.
-- Common recipe vocabulary is translated locally. Free-text translation requires an internet connection and sends only the text that still needs translation to an external service. Generated translations are cached locally and included in backups.
+**Compact JSON** contains recipes, translations, pantry, shopping and settings without local image/PDF/video blobs.
 
-- Pantry is now a dedicated main-navigation page, replacing Import in the bottom navigation.
-- Duplicate Pantry editors were removed from Cook and Settings. Cook still uses Pantry automatically for recipe matching.
-- Import remains available from the top-right `+` button. The button now toggles Import: press once to open it and press again to return to the page you came from.
+**Full ZIP** contains `recipes.json`, `media-index.json`, and the actual locally stored media in `media/`.
 
-## Files
-
-Upload all files in this package to the root of the existing GitHub Pages repository. Keep the repository's existing `.github/workflows/deploy.yml` unchanged.
-
-The app remains framework-free and stores recipes/media locally in IndexedDB. Compact JSON backups omit media blobs; full ZIP backups include stored media separately.
-
-
-### Stable translations
-- Common EN/FI/IT recipe vocabulary is translated locally and deterministically.
-- Remote translations are cached in a local translation memory.
-- Recipe translations use per-field hashes, so editing one field does not retranslate unchanged fields.
-- A localized recipe is only shown when that language version is complete; otherwise the original is shown.
-- Existing v18 translations are reused where possible, while common vocabulary is normalized to the local dictionary.
+Keep the existing GitHub Pages workflow (`.github/workflows/deploy.yml`) unchanged when updating the app files.

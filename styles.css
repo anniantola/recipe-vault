@@ -310,3 +310,8 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .pantry-item-name { font-size:14px; font-weight:750; min-width:0; overflow-wrap:anywhere; }
 .pantry-remove { width:32px; height:32px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:20px; display:grid; place-items:center; }
 .pantry-remove:active { background:var(--surface-2); }
+
+.restore-summary{white-space:pre-line;}
+.restore-warning{padding:10px 12px;border:1px solid var(--line);border-radius:12px;}
+.restore-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px;}
+.restore-actions .restore-cancel{grid-column:1/-1;}

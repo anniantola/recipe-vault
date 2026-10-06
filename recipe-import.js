@@ -117,6 +117,42 @@ export function recipeSchemaFromHtml(html=''){
   return null;
 }
 
+
+export function recipeMetadataFromHtml(html=''){
+  const doc=new DOMParser().parseFromString(String(html),'text/html');
+  const firstText=(selectors=[])=>{
+    for(const selector of selectors){const el=doc.querySelector(selector);const value=clean(el?.getAttribute?.('content')||el?.textContent||'');if(value)return value;}
+    return '';
+  };
+  const author=firstText(['.wprm-recipe-author-name','.wprm-recipe-author','[class*="wprm-recipe-author"]','meta[name="author"]','[rel="author"]']);
+  const servings=firstText(['.wprm-recipe-servings','.wprm-recipe-servings-container [class*="servings"]']);
+  const title=firstText(['.wprm-recipe-name','h1.entry-title','meta[property="og:title"]']);
+  const description=firstText(['.wprm-recipe-summary','meta[name="description"]','meta[property="og:description"]']);
+  const imageUrl=doc.querySelector('.wprm-recipe-image img')?.getAttribute('src')||doc.querySelector('meta[property="og:image"]')?.getAttribute('content')||'';
+  const canonical=doc.querySelector('link[rel="canonical"]')?.getAttribute('href')||'';
+  const nutritionParts=[];
+  const nutrientNodes=[...doc.querySelectorAll('.wprm-recipe-nutrition-with-unit,[class*="wprm-recipe-nutrition-with-unit"]')];
+  for(const el of nutrientNodes){const value=clean(el.textContent||'');if(value&&value.length<180&&!nutritionParts.includes(value))nutritionParts.push(value);}
+  if(!nutritionParts.length){
+    const box=doc.querySelector('.wprm-nutrition-label-container,.wprm-recipe-nutrition-container,[class*="wprm-nutrition-label"]');
+    const value=clean(box?.textContent||'');if(value)nutritionParts.push(value);
+  }
+  const hasWprm=Boolean(doc.querySelector('.wprm-recipe-container,[class*="wprm-recipe"]'));
+  return {author,servings,title,description,imageUrl,canonical,nutrition:sanitizeNutritionText(nutritionParts.join(' | '),title,canonical),wprm:hasWprm};
+}
+
+export function sanitizeNutritionText(value='',title='',url=''){
+  let s=clean(value);if(!s)return '';
+  if(url)s=s.replaceAll(String(url).trim(),' ');
+  if(title){const escaped=String(title).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');try{s=s.replace(new RegExp(escaped,'ig'),' ');}catch{}}
+  s=s.replace(/https?:\/\/\S+/gi,' ').replace(/\s*\|\s*/g,' | ').replace(/\s{2,}/g,' ').replace(/^(?:nutrition|nutrition facts|ravintoarvot|ravintosisältö|valori nutrizionali)\s*[:|-]?\s*/i,'').trim().replace(/^\|+|\|+$/g,'').trim();
+  if(!s)return '';
+  // A valid nutrition block should contain at least one nutrient/value signal.
+  const nutrient=/\b(?:calories?|kcal|energy|carbohydrates?|carbs?|protein|fat|saturated|fiber|fibre|sugar|sodium|salt|cholesterol|potassium|calcium|iron|energia|hiilihydraatit|proteiini|rasva|kuitu|sokeri|suola|calorie|carboidrati|proteine|grassi|fibre|zuccheri|sodio)\b/i;
+  if(!nutrient.test(s)||!/[0-9]/.test(s))return '';
+  return s;
+}
+
 export function htmlToRecipeText(html=''){
   const doc=new DOMParser().parseFromString(String(html),'text/html');
   doc.querySelectorAll('script,style,noscript,nav,footer,header,form,button,svg,aside').forEach(el=>el.remove());
@@ -168,7 +204,7 @@ export function jsonLdToRecipeDraft(schema, source={}){
     ingredients:ingredientLines.map(raw=>({kind:'raw',raw})),
     steps,
     equipment:asList(schema.tool).map(x=>clean(typeof x==='string'?x:(x?.name||''))).filter(Boolean),
-    nutrition:nutritionText(schema.nutrition),
+    nutrition:sanitizeNutritionText(nutritionText(schema.nutrition),clean(schema.name||''),source.url||''),
     source:{type:'website',url:source.url||'',label:source.label||'',filename:'',sourceKey:source.sourceKey||`url:${normalizeUrl(source.url||'')}`,extractor:source.extractor||'json-ld'},
     imageUrl:source.imageUrl||firstImage(schema.image)||''
   });

@@ -1,5 +1,5 @@
 export const SUPPORTED_LANGUAGES=['en','fi','it'];
-export const TRANSLATION_ENGINE_VERSION=20;
+export const TRANSLATION_ENGINE_VERSION=23;
 
 const LANGUAGE_HINTS={
   fi:['ainekset','ainesosat','valmistus','ohje','ohjeet','lisää','sekoita','paista','keitä','uunissa','minuuttia','tuntia','annosta','tarjoile','sokeri','jauho','voi','kananmuna','maito','kerma','sipuli','valkosipuli','tomaatti','peruna','suola','pippuri','öljy','leipä','ruokalusikallinen','teelusikallinen','rkl','tl','dl'],
@@ -28,7 +28,9 @@ export function normalizeLanguageCode(value=''){
 export function detectLanguage(text='',fallback='en'){
   fallback=SUPPORTED_LANGUAGES.includes(fallback)?fallback:'en';
   const raw=clean(text);if(!raw)return fallback;
-  const n=norm(raw);if(SHORT_WORD_HINTS[n])return SHORT_WORD_HINTS[n];
+  const n=norm(raw);
+  const known=knownTermLanguage(n);if(known)return known;
+  if(SHORT_WORD_HINTS[n])return SHORT_WORD_HINTS[n];
   const scores={en:0,fi:0,it:0};
   for(const lang of SUPPORTED_LANGUAGES){
     for(const hint of LANGUAGE_HINTS[lang]){
@@ -89,6 +91,11 @@ term('optional','valinnainen','facoltativo');term('to taste','maun mukaan','q.b.
 
 const TERM_INDEX={en:new Map(),fi:new Map(),it:new Map()};
 for(const item of LOCAL_TERMS){for(const lang of SUPPORTED_LANGUAGES){for(const alias of item.aliases[lang]||[]){const key=norm(alias);if(key&&!TERM_INDEX[lang].has(key))TERM_INDEX[lang].set(key,item);}}}
+function knownTermLanguage(value=''){
+  const key=norm(value);if(!key)return '';
+  const matches=SUPPORTED_LANGUAGES.filter(lang=>TERM_INDEX[lang].has(key));
+  return matches.length===1?matches[0]:'';
+}
 const LOCALES={en:'en-US',fi:'fi-FI',it:'it-IT'};
 function localeFor(lang='en'){return LOCALES[normalizeLanguageCode(lang)||'en']||'en-US';}
 const KNOWN_ACRONYMS=new Set(['BBQ','BLT','PB','PBJ','MSG','IPA','USA','US','EU','AI']);
@@ -140,7 +147,7 @@ export function deterministicTranslation(text,source,target,kind='generic'){
 }
 
 function fnv1a(text=''){let h=0x811c9dc5;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(36);}
-const MEMORY_KEY='recipe-vault-translation-memory-v20';
+const MEMORY_KEY='recipe-vault-translation-memory-v23';
 let memoryCache=null;
 function loadMemory(){
   if(memoryCache)return memoryCache;memoryCache={};
@@ -199,6 +206,9 @@ export async function translateText(text,source,target,kind='generic'){
   const src=clean(text);source=normalizeLanguageCode(source)||detectLanguage(src,'en');target=normalizeLanguageCode(target)||target;
   if(!src||!SUPPORTED_LANGUAGES.includes(target)||source===target)return src;
   const local=deterministicTranslation(src,source,target,kind);if(local)return local;
+  // Units are controlled vocabulary. Never send an unknown unit to a generic
+  // translator (old builds turned `dl` into honorifics such as `Mr` / `Sig`).
+  if(kind==='unit')return formatLocalizedValue(src,'unit',target);
   const remembered=memoryGet(src,source,target);if(remembered)return formatLocalizedValue(remembered,kind,target);
   try{const value=formatLocalizedValue(await googleTranslate(src,source,target),kind,target);memorySet(src,source,target,value);return value;}catch(first){
     try{const value=formatLocalizedValue(await myMemoryTranslate(src,source,target),kind,target);memorySet(src,source,target,value);return value;}catch(second){console.warn('Translation failed',source,target,first,second);throw second;}
@@ -253,6 +263,7 @@ async function translateChangedDescriptors(descriptors,source,target,existingVal
   for(let i=0;i<descriptors.length;i++){
     const d=descriptors[i],src=clean(d.text);if(!src){values[i]='';continue;}
     const local=deterministicTranslation(src,source,target,d.kind);if(local){values[i]=formatLocalizedValue(local,d.kind,target);continue;}
+    if(d.kind==='unit'){values[i]=formatLocalizedValue(src,'unit',target);continue;}
     if(oldHashes[i]===hashes[i]&&clean(existingValues[i])){values[i]=formatLocalizedValue(existingValues[i],d.kind,target);continue;}
     // A v18 translation has no hashes. Adopt it once rather than needlessly
     // changing wording; deterministic vocabulary above still replaces common terms.
@@ -300,8 +311,8 @@ export function recipeTranslationReady(recipe={},lang='en'){
   const tr=recipe.translations?.[lang];if(!tr)return false;
   const base=recipeSnapshot(recipe);if(!structurallyCompleteTranslation(base,tr))return false;
   const meta=recipe.translationMeta?.[lang];
-  if(!meta)return !(recipe.translationMissing||[]).includes(lang); // legacy v18 translation
-  const signature=sourceSignature(snapshotDescriptors(base));return Boolean(meta.complete&&meta.sourceSignature===signature);
+  if(!meta)return false; // legacy translations are migrated once through the current deterministic vocabulary
+  const signature=sourceSignature(snapshotDescriptors(base));return Boolean(meta.complete&&meta.sourceSignature===signature&&meta.engineVersion===TRANSLATION_ENGINE_VERSION);
 }
 export function localizedRecipe(recipe={},lang='en'){
   lang=normalizeLanguageCode(lang)||'en';

@@ -71,7 +71,10 @@ export function classifyRecipe(recipe={}){
   const ingredientText=(recipe.ingredients||[]).map(i=>i?.name||i?.ingredient||i?.raw||'').join(' ');
   const text=[recipe.title,recipe.description,recipe.category,(recipe.tags||[]).join(' '),ingredientText,(recipe.steps||[]).join(' ')].filter(Boolean).join('\n');
   const existingType=String(recipe.type||recipe.category||'').trim();
-  let type=existingType && !/^recipe$/i.test(existingType) ? existingType : '';
+  // `Dinner` was an old broad bucket. Re-run classification for it so stronger
+  // evidence such as spaghetti/penne can migrate legacy recipes to Pasta.
+  const legacyBroad=/^(?:recipe|dinner)$/i.test(existingType);
+  let type=existingType && !legacyBroad ? existingType : '';
   if(!type){ for(const [name,re] of TYPE_RULES){ if(re.test(text)){type=name;break;} } }
   if(!type)type='Recipe';
   const cuisine=uniq([...(recipe.cuisine||[]),...(recipe.tags||[]).filter(t=>CUISINE_RULES.some(([n])=>n===t)),...CUISINE_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)]);
