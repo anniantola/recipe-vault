@@ -124,7 +124,7 @@ const I18N = {
     privateLibrary:'PRIVATE RECIPE LIBRARY', recipes:'Recipes', cook:'Cook', import:'Import', shopping:'Shopping', settings:'Settings',
     searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newestFirst:'Newest added first', newest:'Newest', az:'A–Z', favorites:'Favorites', changePhoto:'Change photo', cropPhoto:'Crop photo', cropHelp:'Drag the image to position it and use the slider to zoom.', cancel:'Cancel', saveCrop:'Use crop', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
     whatCanIMake:'WHAT CAN I MAKE?', matchWhatYouHave:'Match what you have', matcherHelp:'Type ingredients loosely. The matcher understands English, Finnish and Italian, plus plurals, preparation words and common synonyms.', availablePlaceholder:'e.g. tomato, pasta, parmesan', add:'Add', includePantry:'Include pantry', includePantryHelp:'Use ingredients you have saved at home.', addFewIngredients:'Add a few ingredients', matchEmptyText:'Your recipes will be ranked by how many required ingredients you already have.',
-    text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses Jina Reader when a site cannot be read directly. The URL is sent to that external service for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
+    text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses a CORS relay to read public recipe pages and may use Jina Reader as a fallback. The URL is sent to those external services for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
     shoppingList:'SHOPPING LIST', addAnything:'Add anything…', clearChecked:'Clear checked', listEmpty:'Your list is empty', listEmptyText:'Add ingredients from any recipe, or type unrelated shopping items above.', atHome:'AT HOME', pantry:'Pantry', pantryHelp:'Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.', pantryPlaceholder:'Add pantry ingredient…', nothingSaved:'Nothing saved yet.',
     languageEyebrow:'LANGUAGE', language:'Language', appLanguage:'App language', appLanguageHelp:'Changes the interface language. Recipe parsing always understands English, Finnish and Italian.', appearance:'APPEARANCE', theme:'Theme', colorTheme:'Color theme', darkHelp:'Dark mode uses a true black background.', system:'System', dark:'Dark', light:'Light', data:'DATA', backupRestore:'Backup & restore', backupHelp:'Your data is stored locally on this device. Export a JSON backup before clearing browser/app data or moving phones.', includeMedia:'Include recipe media', includeMediaHelp:'Includes stored photos, PDFs and videos; backups can become large.', exportJson:'Export JSON', importJson:'Import JSON', app:'APP', installVault:'Install Recipe Vault', installHelp:'Install it to your home screen for standalone use and Android share-sheet importing.', installApp:'Install app', installed:'Installed', shareHelp:'After installation, downloaded recipe photos/videos/PDFs can be shared to Recipe Vault from Android’s normal Share menu on supporting browsers.', reset:'RESET', clearData:'Clear app data', deleteAll:'Delete all recipes and lists',
     save:'Save', reviewRecipe:'Review recipe', editRecipe:'Edit recipe', title:'Title', servings:'Servings', servingsPlaceholder:'e.g. 4', prepTime:'Prep time', prepTimePlaceholder:'e.g. 30 mins', cookBakeTime:'Cook / bake time', cookBakeTimePlaceholder:'e.g. 30 mins', restRiseTime:'Rest / rise time', restRiseTimePlaceholder:'e.g. 3 hrs 40 mins', totalTime:'Total time', totalTimePlaceholder:'e.g. 4 hrs 40 mins', ovenTemperature:'Oven', ovenTemperaturePlaceholder:'e.g. 180°C / 350°F', category:'Category', categoryPlaceholder:'Dinner, baking…', tags:'Tags', tagsPlaceholder:'Italian, vegetarian, quick…', ingredients:'Ingredients', ingredientsPlaceholder:'One ingredient per line', steps:'Steps', stepsPlaceholder:'One step per line', notes:'Notes / extra information', notesPlaceholder:'Tips, substitutions, storage, or anything that did not fit elsewhere', sourceUrl:'Source URL', deleteRecipe:'Delete recipe', addToShopping:'Add to shopping', cancel:'Cancel', delete:'Delete', source:'Source', optional:'optional', noIngredients:'No ingredients parsed.', noSteps:'No steps parsed.', originalVideo:'Original video', originalPdf:'Original PDF', openStoredPdf:'Open stored PDF ↗', checkWhatIHave:'Check what I have', alreadyAtHome:'Already at home', noIngredientsAvailable:'No ingredients available.',
@@ -135,7 +135,7 @@ const I18N = {
     privateLibrary:'OMA RESEPTIKIRJASTO', recipes:'Reseptit', cook:'Kokkaa', import:'Tuo', shopping:'Ostokset', settings:'Asetukset',
     searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newestFirst:'Uusimmat lisäykset ensin', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', changePhoto:'Vaihda kuva', cropPhoto:'Rajaa kuva', cropHelp:'Siirrä kuvaa vetämällä ja zoomaa liukusäätimellä.', cancel:'Peruuta', saveCrop:'Käytä rajausta', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
     whatCanIMake:'MITÄ VOIN TEHDÄ?', matchWhatYouHave:'Etsi aineksillasi', matcherHelp:'Kirjoita ainekset vapaasti. Haku ymmärtää englantia, suomea ja italiaa sekä taivutuksia, valmistelusanoja ja tavallisia synonyymejä.', availablePlaceholder:'esim. tomaatti, pasta, parmesaani', add:'Lisää', includePantry:'Sisällytä kotivarasto', includePantryHelp:'Käytä myös kotiin tallennettuja aineksia.', addFewIngredients:'Lisää muutama aines', matchEmptyText:'Reseptit järjestetään sen mukaan, kuinka moni tarvittava aines sinulla jo on.',
-    text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää Jina Readeria, jos sivua ei voi lukea suoraan. URL lähetetään palveluun tekstin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
+    text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää CORS-välityspalvelua julkisten reseptisivujen lukemiseen ja voi käyttää Jina Readeria varavaihtoehtona. URL lähetetään näihin ulkoisiin palveluihin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
     shoppingList:'OSTOSLISTA', addAnything:'Lisää mitä tahansa…', clearChecked:'Poista rastitetut', listEmpty:'Ostoslista on tyhjä', listEmptyText:'Lisää aineksia resepteistä tai kirjoita listaan muita ostoksia.', atHome:'KOTONA', pantry:'Kotivarasto', pantryHelp:'Kotivarastoon tallennetut ainekset jätetään automaattisesti pois, kun lisäät puuttuvat reseptiainekset ostoslistalle.', pantryPlaceholder:'Lisää aines kotivarastoon…', nothingSaved:'Ei vielä tallennettuja aineksia.',
     languageEyebrow:'KIELI', language:'Kieli', appLanguage:'Sovelluksen kieli', appLanguageHelp:'Vaihtaa käyttöliittymän kielen. Reseptien jäsennys ymmärtää aina englantia, suomea ja italiaa.', appearance:'ULKOASU', theme:'Teema', colorTheme:'Väriteema', darkHelp:'Tumma tila käyttää täysin mustaa taustaa.', system:'Järjestelmä', dark:'Tumma', light:'Vaalea', data:'TIEDOT', backupRestore:'Varmuuskopiointi', backupHelp:'Tiedot tallennetaan paikallisesti tälle laitteelle. Vie JSON-varmuuskopio ennen selaimen/sovelluksen tietojen tyhjentämistä tai puhelimen vaihtoa.', includeMedia:'Sisällytä mediatiedostot', includeMediaHelp:'Sisältää tallennetut kuvat, PDF:t ja videot; varmuuskopio voi olla suuri.', exportJson:'Vie JSON', importJson:'Tuo JSON', app:'SOVELLUS', installVault:'Asenna Recipe Vault', installHelp:'Asenna kotinäytölle erillisenä sovelluksena ja Androidin jakovalikkoa varten.', installApp:'Asenna sovellus', installed:'Asennettu', shareHelp:'Asennuksen jälkeen ladattuja reseptikuvia, videoita ja PDF:iä voi jakaa Recipe Vaultiin Androidin tavallisesta jakovalikosta tuetuissa selaimissa.', reset:'NOLLAUS', clearData:'Tyhjennä sovelluksen tiedot', deleteAll:'Poista kaikki reseptit ja listat',
     save:'Tallenna', reviewRecipe:'Tarkista resepti', editRecipe:'Muokkaa reseptiä', title:'Nimi', servings:'Annokset', servingsPlaceholder:'esim. 4', prepTime:'Valmisteluaika', prepTimePlaceholder:'esim. 30 min', cookBakeTime:'Kypsennys / paisto', cookBakeTimePlaceholder:'esim. 30 min', restRiseTime:'Lepo / kohotus', restRiseTimePlaceholder:'esim. 3 h 40 min', totalTime:'Kokonaisaika', totalTimePlaceholder:'esim. 4 h 40 min', ovenTemperature:'Uuni', ovenTemperaturePlaceholder:'esim. 180 °C / 350 °F', category:'Kategoria', categoryPlaceholder:'Päivällinen, leivonta…', tags:'Tagit', tagsPlaceholder:'Italialainen, kasvis, nopea…', ingredients:'Ainekset', ingredientsPlaceholder:'Yksi aines per rivi', steps:'Ohjeet', stepsPlaceholder:'Yksi vaihe per rivi', notes:'Muistiinpanot / lisätiedot', notesPlaceholder:'Vinkit, korvaavat ainekset, säilytys tai muu tieto, joka ei kuulu aineksiin tai ohjeisiin', sourceUrl:'Lähde-URL', deleteRecipe:'Poista resepti', addToShopping:'Lisää ostoslistalle', cancel:'Peruuta', delete:'Poista', source:'Lähde', optional:'valinnainen', noIngredients:'Aineksia ei tunnistettu.', noSteps:'Ohjeita ei tunnistettu.', originalVideo:'Alkuperäinen video', originalPdf:'Alkuperäinen PDF', openStoredPdf:'Avaa tallennettu PDF ↗', checkWhatIHave:'Tarkista mitä minulla on', alreadyAtHome:'On jo kotona', noIngredientsAvailable:'Ei aineksia.',
@@ -146,7 +146,7 @@ const I18N = {
     privateLibrary:'RACCOLTA RICETTE PRIVATA', recipes:'Ricette', cook:'Cucina', import:'Importa', shopping:'Spesa', settings:'Impostazioni',
     searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newestFirst:'Aggiunte più recenti prima', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', changePhoto:'Cambia foto', cropPhoto:'Ritaglia foto', cropHelp:'Trascina l’immagine per posizionarla e usa il cursore per lo zoom.', cancel:'Annulla', saveCrop:'Usa ritaglio', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
     whatCanIMake:'COSA POSSO CUCINARE?', matchWhatYouHave:'Abbina ciò che hai', matcherHelp:'Scrivi gli ingredienti liberamente. La ricerca comprende inglese, finlandese e italiano, oltre a plurali, termini di preparazione e sinonimi comuni.', availablePlaceholder:'es. pomodoro, pasta, parmigiano', add:'Aggiungi', includePantry:'Includi dispensa', includePantryHelp:'Usa anche gli ingredienti salvati a casa.', addFewIngredients:'Aggiungi alcuni ingredienti', matchEmptyText:'Le ricette saranno ordinate in base a quanti ingredienti necessari hai già.',
-    text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa Jina Reader quando un sito non può essere letto direttamente. L’URL viene inviato al servizio per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
+    text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa un relay CORS per leggere le pagine pubbliche e può usare Jina Reader come fallback. L’URL viene inviato a questi servizi esterni per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
     shoppingList:'LISTA DELLA SPESA', addAnything:'Aggiungi qualsiasi cosa…', clearChecked:'Rimuovi selezionati', listEmpty:'La lista è vuota', listEmptyText:'Aggiungi ingredienti da una ricetta oppure altri articoli manualmente.', atHome:'A CASA', pantry:'Dispensa', pantryHelp:'Gli ingredienti salvati in dispensa vengono esclusi automaticamente quando aggiungi alla spesa quelli mancanti di una ricetta.', pantryPlaceholder:'Aggiungi ingrediente in dispensa…', nothingSaved:'Ancora nessun ingrediente salvato.',
     languageEyebrow:'LINGUA', language:'Lingua', appLanguage:'Lingua dell’app', appLanguageHelp:'Cambia la lingua dell’interfaccia. L’analisi delle ricette comprende sempre inglese, finlandese e italiano.', appearance:'ASPETTO', theme:'Tema', colorTheme:'Tema colore', darkHelp:'La modalità scura usa uno sfondo nero puro.', system:'Sistema', dark:'Scuro', light:'Chiaro', data:'DATI', backupRestore:'Backup e ripristino', backupHelp:'I dati sono salvati localmente su questo dispositivo. Esporta un backup JSON prima di cancellare i dati del browser/app o cambiare telefono.', includeMedia:'Includi file multimediali', includeMediaHelp:'Include foto, PDF e video salvati; il backup può diventare grande.', exportJson:'Esporta JSON', importJson:'Importa JSON', app:'APP', installVault:'Installa Recipe Vault', installHelp:'Installalo nella schermata Home per usarlo come app e importare dal menu Condividi di Android.', installApp:'Installa app', installed:'Installata', shareHelp:'Dopo l’installazione, foto, video e PDF di ricette scaricati possono essere condivisi con Recipe Vault dal normale menu Condividi di Android nei browser supportati.', reset:'RESET', clearData:'Cancella dati app', deleteAll:'Elimina tutte le ricette e le liste',
     save:'Salva', reviewRecipe:'Controlla ricetta', editRecipe:'Modifica ricetta', title:'Titolo', servings:'Porzioni', servingsPlaceholder:'es. 4', prepTime:'Preparazione', prepTimePlaceholder:'es. 30 min', cookBakeTime:'Cottura / forno', cookBakeTimePlaceholder:'es. 30 min', restRiseTime:'Riposo / lievitazione', restRiseTimePlaceholder:'es. 3 h 40 min', totalTime:'Tempo totale', totalTimePlaceholder:'es. 4 h 40 min', ovenTemperature:'Forno', ovenTemperaturePlaceholder:'es. 180°C / 350°F', category:'Categoria', categoryPlaceholder:'Cena, dolci…', tags:'Tag', tagsPlaceholder:'Italiano, vegetariano, veloce…', ingredients:'Ingredienti', ingredientsPlaceholder:'Un ingrediente per riga', steps:'Procedimento', stepsPlaceholder:'Un passaggio per riga', notes:'Note / informazioni extra', notesPlaceholder:'Consigli, sostituzioni, conservazione o altre informazioni non adatte a ingredienti o procedimento', sourceUrl:'URL fonte', deleteRecipe:'Elimina ricetta', addToShopping:'Aggiungi alla spesa', cancel:'Annulla', delete:'Elimina', source:'Fonte', optional:'facoltativo', noIngredients:'Nessun ingrediente riconosciuto.', noSteps:'Nessun passaggio riconosciuto.', originalVideo:'Video originale', originalPdf:'PDF originale', openStoredPdf:'Apri PDF salvato ↗', checkWhatIHave:'Controlla cosa ho', alreadyAtHome:'Già a casa', noIngredientsAvailable:'Nessun ingrediente disponibile.',
@@ -1579,28 +1579,177 @@ async function parseTextImport() {
   setStatus(t('parsedReview'),false);
   openEditor(recipe,true);
 }
-async function fetchReadableUrl(url) {
-  const target=`https://r.jina.ai/${url}`;
+function isoDurationToText(value='') {
+  const m=String(value||'').match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i);
+  if(!m) return cleanInlineSpacing(value||'');
+  const days=Number(m[1]||0), hours=Number(m[2]||0)+days*24, mins=Number(m[3]||0), secs=Number(m[4]||0);
+  const parts=[];
+  if(hours) parts.push(`${hours} ${hours===1?'hr':'hrs'}`);
+  if(mins) parts.push(`${mins} ${mins===1?'min':'mins'}`);
+  if(!parts.length && secs) parts.push(`${secs} sec`);
+  return parts.join(' ');
+}
+function firstSchemaImage(image) {
+  const pick=x=>{
+    if(!x) return '';
+    if(typeof x==='string') return x;
+    if(Array.isArray(x)) { for(const v of x){const p=pick(v);if(p)return p;} return ''; }
+    if(typeof x==='object') return String(x.url||x.contentUrl||x.thumbnailUrl||'');
+    return '';
+  };
+  return pick(image);
+}
+function schemaAuthor(author) {
+  if(!author) return '';
+  if(Array.isArray(author)) return author.map(schemaAuthor).filter(Boolean).join(', ');
+  return cleanInlineSpacing(typeof author==='string'?author:(author.name||''));
+}
+function schemaInstructions(value) {
+  const out=[];
+  const visit=v=>{
+    if(!v) return;
+    if(Array.isArray(v)){v.forEach(visit);return;}
+    if(typeof v==='string'){const x=cleanInlineSpacing(stripMarkdown(v));if(x)out.push(x);return;}
+    if(typeof v!=='object')return;
+    const type=String(v['@type']||'').toLowerCase();
+    if(type.includes('howtosection')){
+      if(v.name && Array.isArray(v.itemListElement)) v.itemListElement.forEach(visit);
+      else visit(v.itemListElement||v.steps);
+      return;
+    }
+    const x=cleanInlineSpacing(stripMarkdown(v.text||v.name||''));
+    if(x)out.push(x);
+    else visit(v.itemListElement||v.steps);
+  };
+  visit(value);
+  return [...new Set(out)].filter(Boolean);
+}
+function findRecipeSchema(value) {
+  let best=null;
+  const visit=v=>{
+    if(!v || best) return;
+    if(Array.isArray(v)){for(const x of v){visit(x);if(best)break;}return;}
+    if(typeof v!=='object')return;
+    const types=Array.isArray(v['@type'])?v['@type']:[v['@type']];
+    if(types.some(x=>String(x||'').toLowerCase()==='recipe')){best=v;return;}
+    if(v['@graph'])visit(v['@graph']);
+    for(const [k,x] of Object.entries(v)) if(k!=='@graph' && typeof x==='object'){visit(x);if(best)break;}
+  };
+  visit(value);return best;
+}
+function parseRecipeJsonLd(schema, source={}) {
+  if(!schema) return null;
+  const ingredients=(Array.isArray(schema.recipeIngredient)?schema.recipeIngredient:[])
+    .map(x=>parseIngredientLine(cleanInlineSpacing(stripMarkdown(String(x||'')))))
+    .filter(Boolean);
+  const steps=schemaInstructions(schema.recipeInstructions);
+  if(ingredients.length<2 || steps.length<1) return null;
+  let servings='';
+  const y=schema.recipeYield;
+  if(Array.isArray(y)) servings=String(y.find(Boolean)||''); else servings=String(y||'');
+  servings=cleanInlineSpacing(servings);
+  const prepTime=isoDurationToText(schema.prepTime||'');
+  const cookTime=isoDurationToText(schema.cookTime||'');
+  const totalTime=isoDurationToText(schema.totalTime||'');
+  let restTime='';
+  if(totalTime && prepTime && cookTime){
+    const total=parseDurationMinutes(totalTime), prep=parseDurationMinutes(prepTime), cook=parseDurationMinutes(cookTime);
+    if(Number.isFinite(total)&&Number.isFinite(prep)&&Number.isFinite(cook)&&total>prep+cook){
+      const rest=total-prep-cook; restTime=rest>=60?`${Math.floor(rest/60)} hrs${rest%60?` ${rest%60} mins`:''}`:`${rest} mins`;
+    }
+  }
+  const temperature=extractTemperatures(steps.join('\n'));
+  const author=schemaAuthor(schema.author);
+  const title=cleanInlineSpacing(schema.name||source.title||'Untitled recipe');
+  const description=cleanInlineSpacing(stripMarkdown(schema.description||''));
+  const nutrition=schema.nutrition&&typeof schema.nutrition==='object'
+    ? Object.entries(schema.nutrition).filter(([k,v])=>!k.startsWith('@')&&v!=null&&String(v).trim()).map(([k,v])=>`${k.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase())}: ${cleanInlineSpacing(v)}`).join(' | ')
+    : '';
+  const notes=[description]; if(nutrition)notes.push('', 'Nutrition', nutrition);
+  let category=cleanInlineSpacing(Array.isArray(schema.recipeCategory)?schema.recipeCategory[0]:schema.recipeCategory||'')||inferCategory(`${title}\n${ingredients.map(ingredientToLine).join('\n')}`);
+  if(/\bpanettone\b/i.test(title)) category='Baking';
+  const tags=[];
+  const addTags=v=>String(v||'').split(/[,;]+/).map(cleanInlineSpacing).filter(Boolean).forEach(x=>tags.push(x));
+  addTags(schema.keywords); addTags(schema.recipeCuisine);
+  const inferred=inferTags(`${title}\n${ingredients.map(ingredientToLine).join('\n')}`); inferred.forEach(x=>tags.push(x));
+  const totalMins=parseDurationMinutes(totalTime||'');
+  const uniqueTags=[...new Set(tags)];
+  if(Number.isFinite(totalMins)&&totalMins>45){const i=uniqueTags.indexOf('Quick');if(i>=0)uniqueTags.splice(i,1);}
+  return cleanRecipeRecord({
+    id:uid('recipe'),title,category,tags:uniqueTags,servings,prepTime,cookTime,restTime,totalTime,temperature,author,
+    ingredients,steps,notes:notes.filter((x,i,a)=>x!==''||a[i-1]!=='').join('\n').trim(),favorite:false,
+    source:{type:'website',url:source.url||'',label:source.label||'',filename:''},
+    imageUrl:source.imageUrl||firstSchemaImage(schema.image)||'',mediaId:'',mediaType:'',thumbnailId:'',createdAt:Date.now(),updatedAt:Date.now()
+  });
+}
+function htmlToRecipeText(html='') {
+  const doc=new DOMParser().parseFromString(String(html),'text/html');
+  doc.querySelectorAll('script,style,noscript,nav,footer,header,form,button,svg').forEach(el=>el.remove());
+  const blocks=[...doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,li,p,div')];
+  const lines=[];
+  const seen=new Set();
+  for(const el of blocks){
+    if(el.children.length && !/^H[1-6]$/.test(el.tagName) && el.tagName!=='LI' && el.tagName!=='P') continue;
+    const text=cleanInlineSpacing(el.textContent||''); if(!text || text.length>1000)continue;
+    const key=normalizeText(text); if(seen.has(key))continue; seen.add(key);
+    if(/^H[1-6]$/.test(el.tagName)) lines.push(`${'#'.repeat(Number(el.tagName.slice(1)))} ${text}`);
+    else if(el.tagName==='LI') lines.push(`• ${text}`);
+    else lines.push(text);
+  }
+  return lines.join('\n');
+}
+function recipeSchemaFromHtml(html='') {
+  const doc=new DOMParser().parseFromString(String(html),'text/html');
+  for(const el of doc.querySelectorAll('script[type="application/ld+json"]')){
+    try{const found=findRecipeSchema(JSON.parse(el.textContent||''));if(found)return found;}catch{}
+  }
+  return null;
+}
+async function fetchWithTimeout(url, options={}, ms=18000) {
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ms);
+  try{return await fetch(url,{...options,signal:controller.signal});}finally{clearTimeout(timer);}
+}
+async function fetchViaAllOrigins(targetUrl) {
+  const endpoints=[
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+    `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
+  ];
   let lastError=null;
-  // JSON mode carries the cleaned Markdown plus useful page metadata and is more stable
-  // across printable recipe-card pages. Fall back to plain Markdown if needed.
+  for(const endpoint of endpoints){
+    try{
+      const res=await fetchWithTimeout(endpoint,{cache:'no-store'},22000);
+      if(!res.ok)throw new Error(`AllOrigins returned ${res.status}`);
+      if(endpoint.includes('/get?')){
+        const payload=await res.json(); const text=String(payload?.contents||'');
+        if(text.length<40)throw new Error('AllOrigins returned an empty page');
+        return text;
+      }
+      const text=await res.text(); if(text.length<40)throw new Error('AllOrigins returned an empty page');
+      return text;
+    }catch(e){lastError=e;}
+  }
+  throw lastError||new Error('CORS relay failed');
+}
+async function fetchReadableUrl(url) {
+  let lastError=null;
+  // GitHub Pages is a static origin, so arbitrary recipe sites cannot normally be fetched
+  // directly by browser JavaScript. AllOrigins performs that cross-origin request server-side.
   try {
-    const res=await fetch(target,{headers:{'Accept':'application/json'},cache:'no-store'});
-    if(!res.ok) throw new Error(`Reader JSON returned ${res.status}`);
-    const payload=await res.json();
-    const data=payload?.data||payload||{};
-    const text=String(data.content||data.markdown||data.text||'').trim();
-    if(text.length<40) throw new Error('Reader JSON did not contain readable page content');
-    const images=Array.isArray(data.images)?data.images:[];
-    const imageUrl=String(data.image||data.imageUrl||data.thumbnail||images[0]?.url||images[0]||'');
-    return {text,title:cleanInlineSpacing(data.title||''),imageUrl};
+    const html=await fetchViaAllOrigins(url);
+    const schema=recipeSchemaFromHtml(html);
+    if(schema)return {html,text:htmlToRecipeText(html),schema,title:cleanInlineSpacing(schema.name||''),imageUrl:firstSchemaImage(schema.image)};
+    const text=htmlToRecipeText(html);
+    if(text.length>=40)return {html,text,schema:null,title:'',imageUrl:''};
   } catch(e) { lastError=e; }
+
+  // Fallback: ask Jina Reader server-side, but relay the response through AllOrigins so the
+  // installed PWA itself never has to make a CORS-blocked request to r.jina.ai.
   try {
-    const res=await fetch(target,{headers:{'Accept':'text/plain'},cache:'no-store'});
-    if(!res.ok) throw new Error(`Reader text returned ${res.status}`);
-    const text=(await res.text()).trim();
-    if(text.length<40) throw new Error('Reader returned an empty page');
-    return {text,title:'',imageUrl:''};
+    const readerUrl=`https://r.jina.ai/${url}`;
+    const text=(await fetchViaAllOrigins(readerUrl)).trim();
+    if(text.length<40)throw new Error('Reader returned an empty page');
+    return {html:'',text,schema:null,title:'',imageUrl:extractFirstImageUrl(text)};
   } catch(e) { lastError=e; }
   throw lastError||new Error('Could not read website');
 }
@@ -1612,7 +1761,8 @@ async function parseWebsiteImport() {
   try {
     const readable=await fetchReadableUrl(url);
     const host=new URL(url).hostname.replace(/^www\./,'');
-    const recipe=parseWebsiteRecipeText(readable.text,{type:'website',url,label:host,imageUrl:readable.imageUrl});
+    const source={type:'website',url,label:host,imageUrl:readable.imageUrl,title:readable.title};
+    const recipe=parseRecipeJsonLd(readable.schema,source)||parseWebsiteRecipeText(readable.text,source);
     if ((!recipe.title || recipe.title==='Untitled recipe') && readable.title) recipe.title=readable.title;
     if (!recipe.ingredients?.length || !recipe.steps?.length) throw new Error(`Recipe card incomplete: ${recipe.ingredients?.length||0} ingredients, ${recipe.steps?.length||0} steps`);
     if (/instagram\.com$/i.test(host) || host.includes('instagram.com')) recipe.tags=[...new Set([...(recipe.tags||[]),'Instagram'])];

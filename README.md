@@ -24,7 +24,7 @@ Recipe amounts can be displayed in Metric or US customary units. Conversions are
 PDF text is rebuilt from page coordinates before parsing, so headings, ingredients, wrapped instructions, notes and nutrition stay in visual reading order instead of being flattened into a single line. Recipe-export metadata and source URLs are also preserved when available.
 
 
-## Recipe library v13
+## Recipe library v14
 The Recipes page now always opens on All recipes and orders the collection by date added, newest first. Editing or favoriting a recipe does not change its position. Obsolete saved filters are reset automatically.
 
 
@@ -38,3 +38,10 @@ Imports now store prep time, cook/bake time, rest/rise time, total time, serving
 
 ## v13 website import
 Website import now detects and extracts the actual printable recipe-card block (including WPRM print pages) instead of parsing surrounding article text. It uses Jina Reader JSON mode first with a plain-text fallback.
+
+
+## v14 website import transport fix
+- Website imports no longer rely on a browser-direct request to Jina Reader, which can be blocked by CORS in an installed GitHub Pages PWA.
+- The app fetches website HTML through a CORS relay, extracts Schema.org Recipe JSON-LD when available, and falls back to cleaned recipe-card text.
+- If direct relayed HTML extraction fails, Jina Reader is used through the relay as a second fallback.
+- This specifically fixes WordPress/WPRM print URLs such as Marcellina In Cucina recipe cards.
