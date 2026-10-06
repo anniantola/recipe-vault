@@ -299,3 +299,14 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .step-edit-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:7px;align-items:start}.step-grip{color:var(--muted);text-align:center;padding-top:10px}.step-edit-row textarea{resize:vertical}
 .recipe-description{margin:7px 0 13px;color:var(--muted);line-height:1.5}.nutrition-text{white-space:pre-wrap;line-height:1.5}.backup-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.match-ready{background:rgba(35,110,65,.88)}.match-staples-only{background:rgba(130,100,30,.9)}.match-missing-main{background:rgba(0,0,0,.74)}
 @media(max-width:720px){.ingredient-edit-row{grid-template-columns:70px 72px minmax(0,1fr) auto}.ingredient-edit-row .ing-note{grid-column:1/4}.ingredient-edit-row .optional-check{grid-column:1/3}.ingredient-edit-row .row-actions{grid-column:4;grid-row:1/3;flex-direction:column}.taxonomy-editor{grid-template-columns:1fr}.backup-grid{grid-template-columns:1fr}.quality-top{flex-direction:column}.quality-top span{text-align:left}}
+
+
+/* v22: dedicated Pantry page and transient top-bar Import */
+#quickImportBtn.import-open { outline:2px solid var(--accent); outline-offset:2px; }
+.pantry-controls { margin-top:4px; }
+.pantry-list { display:flex; flex-direction:column; gap:8px; }
+.pantry-item { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; padding:11px 12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+.pantry-item-icon { width:28px; height:28px; border-radius:9px; display:grid; place-items:center; background:var(--surface-2); color:var(--muted); font-size:15px; }
+.pantry-item-name { font-size:14px; font-weight:750; min-width:0; overflow-wrap:anywhere; }
+.pantry-remove { width:32px; height:32px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:20px; display:grid; place-items:center; }
+.pantry-remove:active { background:var(--surface-2); }

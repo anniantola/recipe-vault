@@ -2,7 +2,7 @@
   "name": "Recipe Vault",
   "short_name": "Recipes",
   "description": "Private local-first recipe library, ingredient matcher and shopping list.",
-  "start_url": "./?v=21",
+  "start_url": "./?v=22",
   "scope": "./",
   "display": "standalone",
   "background_color": "#000000",

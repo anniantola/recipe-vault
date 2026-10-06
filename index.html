@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=21" />
+  <link rel="manifest" href="manifest.webmanifest?v=22" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=22" />
 </head>
 <body>
   <header class="app-header">
@@ -17,7 +17,7 @@
       <div class="eyebrow" data-i18n="privateLibrary">PRIVATE RECIPE LIBRARY</div>
       <h1 id="headerTitle">Recipes</h1>
     </div>
-    <button class="icon-btn" id="quickImportBtn" aria-label="Import recipe" title="Import recipe">＋</button>
+    <button class="icon-btn" id="quickImportBtn" aria-label="Import recipe" title="Import recipe" aria-expanded="false">＋</button>
   </header>
 
   <main id="appMain">
@@ -52,12 +52,6 @@
         <div class="eyebrow" data-i18n="whatCanIMake">WHAT CAN I MAKE?</div>
         <h2 data-i18n="matchWhatYouHave">Match what you have</h2>
         <p data-i18n="matcherHelp">Your pantry is the main ingredient list. Add what you keep at home; Recipe Vault uses it automatically when ranking recipes.</p>
-        <div class="mini-section-label" data-i18n="pantry">Pantry</div>
-        <div class="ingredient-entry-row">
-          <input id="cookPantryInput" placeholder="Add pantry ingredient…" data-i18n-placeholder="pantryPlaceholder" autocomplete="off" />
-          <button id="cookPantryAdd" class="primary small" data-i18n="add">Add</button>
-        </div>
-        <div id="cookPantryChips" class="chip-wrap roomy"></div>
         <details class="secondary-ingredients">
           <summary data-i18n="temporaryIngredients">Temporary ingredients</summary>
           <p data-i18n="temporaryIngredientsHelp">Add something you have right now without saving it to your pantry.</p>
@@ -75,6 +69,27 @@
         <div class="empty-icon">◎</div>
         <h3 data-i18n="addFewIngredients">Add a few ingredients</h3>
         <p data-i18n="matchEmptyText">Your recipes will be ranked by how many required ingredients you already have.</p>
+      </div>
+    </section>
+
+    <section class="page" data-page="pantry">
+      <div class="intro-card">
+        <div class="eyebrow" data-i18n="atHome">AT HOME</div>
+        <h2 data-i18n="pantry">Pantry</h2>
+        <p data-i18n="pantryHelp">Pantry ingredients are used automatically when Recipe Vault ranks what you can cook and are excluded from missing ingredients added to Shopping.</p>
+        <div class="ingredient-entry-row">
+          <input id="pantryInput" placeholder="Add pantry ingredient…" data-i18n-placeholder="pantryPlaceholder" autocomplete="off" />
+          <button id="pantryAddBtn" class="primary small" data-i18n="add">Add</button>
+        </div>
+      </div>
+      <div class="section-row pantry-controls">
+        <div><strong id="pantryCount">0 items</strong></div>
+      </div>
+      <div id="pantryList" class="pantry-list"></div>
+      <div id="pantryEmpty" class="empty-card hidden">
+        <div class="empty-icon">▦</div>
+        <h3 data-i18n="nothingSaved">Nothing saved yet.</h3>
+        <p data-i18n="pantryHelp">Pantry ingredients are used automatically when Recipe Vault ranks what you can cook and are excluded from missing ingredients added to Shopping.</p>
       </div>
     </section>
 
@@ -169,17 +184,6 @@
 
     <section class="page" data-page="settings">
       <div class="settings-group">
-        <div class="eyebrow" data-i18n="atHome">AT HOME</div>
-        <h2 data-i18n="pantry">Pantry</h2>
-        <p class="muted" data-i18n="pantryHelp">Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.</p>
-        <div class="ingredient-entry-row">
-          <input id="pantryInput" placeholder="Add pantry ingredient…" data-i18n-placeholder="pantryPlaceholder" autocomplete="off" />
-          <button id="pantryAddBtn" class="primary small" data-i18n="add">Add</button>
-        </div>
-        <div id="pantryChips" class="chip-wrap roomy"></div>
-      </div>
-
-      <div class="settings-group">
         <div class="eyebrow" data-i18n="languageEyebrow">LANGUAGE</div>
         <h2 data-i18n="language">Language</h2>
         <label class="setting-line no-border">
@@ -260,7 +264,7 @@
   <nav class="bottom-nav" aria-label="Main navigation">
     <button class="active" data-nav="recipes"><span>⌑</span><small data-i18n="recipes">Recipes</small></button>
     <button data-nav="cook"><span>◎</span><small data-i18n="cook">Cook</small></button>
-    <button data-nav="import"><span>＋</span><small data-i18n="import">Import</small></button>
+    <button data-nav="pantry"><span>▦</span><small data-i18n="pantry">Pantry</small></button>
     <button data-nav="shopping"><span>☐</span><small data-i18n="shopping">Shopping</small></button>
     <button data-nav="settings"><span>⚙</span><small data-i18n="settings">Settings</small></button>
   </nav>
@@ -366,6 +370,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>

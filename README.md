@@ -1,8 +1,8 @@
-# Recipe Vault v21
+# Recipe Vault v22
 
 Recipe Vault is a local-first, installable recipe library for GitHub Pages.
 
-## v21
+## v22
 
 - Oven temperatures are normalized to compact units: e.g. `180 Celsius` / `180 degrees Celsius` → `180°C`, and `350 Fahrenheit` → `350°F`. Existing recipes are normalized on load as well as new imports/edits.
 
@@ -16,6 +16,10 @@ Recipe Vault is a local-first, installable recipe library for GitHub Pages.
 - The original recipe/source wording remains the authoritative saved recipe. Machine translations are stored separately; unchanged fields keep their existing translations when a recipe is edited.
 - Existing v17 and older recipes/items are backfilled in the background; if translation is temporarily unavailable, the original text is shown and Recipe Vault retries later.
 - Common recipe vocabulary is translated locally. Free-text translation requires an internet connection and sends only the text that still needs translation to an external service. Generated translations are cached locally and included in backups.
+
+- Pantry is now a dedicated main-navigation page, replacing Import in the bottom navigation.
+- Duplicate Pantry editors were removed from Cook and Settings. Cook still uses Pantry automatically for recipe matching.
+- Import remains available from the top-right `+` button. The button now toggles Import: press once to open it and press again to return to the page you came from.
 
 ## Files
 
