@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=14" />
+  <link rel="manifest" href="manifest.webmanifest?v=15" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body>
   <header class="app-header">
@@ -51,19 +51,22 @@
       <div class="intro-card">
         <div class="eyebrow" data-i18n="whatCanIMake">WHAT CAN I MAKE?</div>
         <h2 data-i18n="matchWhatYouHave">Match what you have</h2>
-        <p data-i18n="matcherHelp">Type ingredients loosely. The matcher tolerates plurals, preparation words, partial names and common synonyms.</p>
+        <p data-i18n="matcherHelp">Your pantry is the main ingredient list. Add what you keep at home; Recipe Vault uses it automatically when ranking recipes.</p>
+        <div class="mini-section-label" data-i18n="pantry">Pantry</div>
         <div class="ingredient-entry-row">
-          <input id="availableIngredientInput" placeholder="e.g. tomato, pasta, parmesan" data-i18n-placeholder="availablePlaceholder" autocomplete="off" />
-          <button id="addAvailableIngredient" class="primary small" data-i18n="add">Add</button>
+          <input id="cookPantryInput" placeholder="Add pantry ingredient…" data-i18n-placeholder="pantryPlaceholder" autocomplete="off" />
+          <button id="cookPantryAdd" class="primary small" data-i18n="add">Add</button>
         </div>
-        <div id="availableChips" class="chip-wrap"></div>
-        <label class="toggle-row">
-          <span>
-            <strong data-i18n="includePantry">Include pantry</strong>
-            <small data-i18n="includePantryHelp">Use ingredients you have saved at home.</small>
-          </span>
-          <input id="includePantryToggle" type="checkbox" checked />
-        </label>
+        <div id="cookPantryChips" class="chip-wrap roomy"></div>
+        <details class="secondary-ingredients">
+          <summary data-i18n="temporaryIngredients">Temporary ingredients</summary>
+          <p data-i18n="temporaryIngredientsHelp">Add something you have right now without saving it to your pantry.</p>
+          <div class="ingredient-entry-row">
+            <input id="availableIngredientInput" placeholder="e.g. one-off ingredient" data-i18n-placeholder="availablePlaceholder" autocomplete="off" />
+            <button id="addAvailableIngredient" class="secondary small" data-i18n="add">Add</button>
+          </div>
+          <div id="availableChips" class="chip-wrap"></div>
+        </details>
       </div>
 
       <div class="match-summary" id="matchSummary"></div>
@@ -357,6 +360,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=14"></script>
+  <script type="module" src="app.js?v=15"></script>
 </body>
 </html>

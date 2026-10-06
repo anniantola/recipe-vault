@@ -45,3 +45,8 @@ Website import now detects and extracts the actual printable recipe-card block (
 - The app fetches website HTML through a CORS relay, extracts Schema.org Recipe JSON-LD when available, and falls back to cleaned recipe-card text.
 - If direct relayed HTML extraction fails, Jina Reader is used through the relay as a second fallback.
 - This specifically fixes WordPress/WPRM print URLs such as Marcellina In Cucina recipe cards.
+
+
+## v15
+- Pantry is the primary ingredient list on the Cook page; temporary ingredients are secondary.
+- Common pasta shapes (spaghetti, penne, tagliatelle, linguine, macaroni, fusilli, rigatoni, farfalle, orecchiette and lasagna) normalize to `pasta` for matching while keeping their original display name.

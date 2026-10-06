@@ -276,3 +276,12 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 
 /* Structured recipe facts under title */
 .recipe-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0 14px}.recipe-fact{padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);min-width:0}.recipe-fact span{display:block;font-size:9px;font-weight:850;letter-spacing:.055em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}.recipe-fact strong{display:block;font-size:13px;line-height:1.25;overflow-wrap:anywhere}.recipe-meta-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}@media(max-width:520px){.recipe-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.recipe-meta-editor{grid-template-columns:1fr 1fr}}
+
+/* v15: pantry-first Cook page */
+.mini-section-label{margin-top:14px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.secondary-ingredients{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.secondary-ingredients summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--text);list-style:none}
+.secondary-ingredients summary::-webkit-details-marker{display:none}
+.secondary-ingredients summary::after{content:'+';float:right;color:var(--muted);font-size:18px;line-height:1}
+.secondary-ingredients[open] summary::after{content:'−'}
+.secondary-ingredients p{margin:8px 0 0}
