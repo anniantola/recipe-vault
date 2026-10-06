@@ -1,6 +1,6 @@
-const CACHE = 'recipe-vault-v2';
+const CACHE = 'recipe-vault-v5';
 const APP_SHELL = [
-  './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
+  './', './index.html', './styles.css?v=5', './app.js?v=5', './manifest.webmanifest?v=5',
   './icon-192.png', './icon-512.png'
 ];
 const DB_NAME = 'recipe-vault-db';
@@ -75,18 +75,24 @@ self.addEventListener('fetch', event => {
 
   if (req.method !== 'GET') return;
   event.respondWith((async () => {
+    // Network-first for our own app files so updates are visible immediately; cache remains the offline fallback.
+    if (url.origin === self.location.origin) {
+      try {
+        const response = await fetch(req, {cache:'no-store'});
+        if (response && response.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put(req, response.clone());
+        }
+        return response;
+      } catch (e) {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        if (req.mode === 'navigate') return caches.match('./index.html');
+        throw e;
+      }
+    }
     const cached = await caches.match(req);
     if (cached) return cached;
-    try {
-      const response = await fetch(req);
-      if (response && response.ok && url.origin === self.location.origin) {
-        const cache = await caches.open(CACHE);
-        cache.put(req, response.clone());
-      }
-      return response;
-    } catch (e) {
-      if (req.mode === 'navigate') return caches.match('./index.html');
-      throw e;
-    }
+    return fetch(req);
   })());
 });

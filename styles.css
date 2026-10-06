@@ -235,3 +235,24 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 }
 
 .setting-line.no-border { border-top: 0; margin-top: 0; padding-top: 4px; }
+.ingredient-list li.ingredient-group {
+  display:block;
+  padding:14px 0 5px;
+  border-bottom:0;
+  font-size:13px;
+  letter-spacing:.04em;
+}
+.picker-group {
+  padding:12px 2px 5px;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--muted);
+}
+
+/* Language selector: explicit buttons are more reliable in standalone PWAs than a native select. */
+.language-switch{display:flex;gap:6px;flex:0 0 auto}
+.language-choice{min-width:38px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font-weight:700;font-size:12px}
+.language-choice.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+@media(max-width:430px){.setting-line.no-border{align-items:flex-start}.language-switch{margin-top:1px}}

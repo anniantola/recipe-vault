@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="manifest" href="manifest.webmanifest?v=5" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <header class="app-header">
@@ -184,11 +184,11 @@
             <strong data-i18n="appLanguage">App language</strong>
             <small data-i18n="appLanguageHelp">Changes the interface language. Recipe parsing always understands English, Finnish and Italian.</small>
           </span>
-          <select id="languageSelect" class="compact-select">
-            <option value="en">English</option>
-            <option value="fi">Suomi</option>
-            <option value="it">Italiano</option>
-          </select>
+          <div id="languageSwitch" class="language-switch" role="group" aria-label="App language">
+            <button type="button" class="language-choice" data-language="en">EN</button>
+            <button type="button" class="language-choice" data-language="fi">FI</button>
+            <button type="button" class="language-choice" data-language="it">IT</button>
+          </div>
         </label>
       </div>
 
@@ -316,6 +316,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

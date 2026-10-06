@@ -1,6 +1,6 @@
 const DB_NAME = 'recipe-vault-db';
 const DB_VERSION = 1;
-const APP_VERSION = 2;
+const APP_VERSION = 3;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -22,7 +22,10 @@ const UNIT_ALIASES = {
   clove:'clove', cloves:'clove', 'kynsi':'clove', 'kyntta':'clove', 'spicchio':'clove', 'spicchi':'clove',
   bunch:'bunch', bunches:'bunch', 'nippu':'bunch', 'mazzo':'bunch', 'mazzetto':'bunch',
   piece:'piece', pieces:'piece', 'kpl':'piece', 'kappale':'piece', 'kappaletta':'piece', 'pezzo':'piece', 'pezzi':'piece',
-  'q.b':'to taste', 'qb':'to taste'
+  'q.b':'to taste', 'qb':'to taste',
+  'ruukku':'pot', 'ruukkua':'pot', 'pot':'pot', 'pots':'pot', 'vasetto':'pot', 'vasetti':'pot',
+  'stick':'stick', 'sticks':'stick', 'tanko':'stick', 'bastoncino':'stick', 'bastoncini':'stick',
+  'handful':'handful', 'kourallinen':'handful', 'manciata':'handful', 'manciate':'handful'
 };
 const UNITS = Object.keys(UNIT_ALIASES);
 const PREP_WORDS = new Set([
@@ -91,9 +94,9 @@ const HEADING_SETS = {
   ingredients: new Set(['ingredients','ingredient','what youll need','ainekset','ainesosat','raaka aineet','ingredienti','occorrente']),
   steps: new Set(['instructions','instruction','directions','direction','method','steps','step','preparation','ohje','ohjeet','valmistus','valmistusohje','valmistusohjeet','teko ohje','istruzioni','procedimento','preparazione','metodo']),
   notes: new Set(['notes','note','tips','tip','cook s notes','huom','huomio','huomioita','vinkit','vinkki','lisatiedot','lisatieto','note dello chef','consigli','consiglio','suggerimenti']),
-  stop: new Set(['nutrition','nutrition facts','nutritional information','ravintoarvot','ravintosisalto','valori nutrizionali','informazioni nutrizionali','related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
+  stop: new Set(['nutrition','nutrition facts','nutritional information','nutritional estimate','nutritional estimate per serving','ravintoarvot','ravintosisalto','valori nutrizionali','informazioni nutrizionali','related recipes','samankaltaiset reseptit','ricette correlate','comments','kommentit','commenti','did you make this','rate this recipe'])
 };
-const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content)$/i;
+const BOILERPLATE_RE = /^(jump to recipe|print recipe|advertisement|cookie policy|privacy policy|accept cookies|save recipe|share recipe|sign up|newsletter|skip to content|cook mode.*|voit merkata työvaiheen.*|you can mark the step.*|puoi segnare.*)$/i;
 const EXTRA_INFO_RE = /\b(prep time|cook time|total time|rest time|storage|store|substitut|tip|note|serve with|make ahead|freez|prep|valmistusaika|kypsennysaika|paistoaika|kokonaisaika|sailytys|säilytys|vinkki|huom|tarjoile|korvaa|pakastus|tempo di preparazione|tempo di cottura|tempo totale|riposo|conserva|conservazione|consiglio|sostitu|servire con)\b/i;
 
 let db;
@@ -158,7 +161,7 @@ function applyLanguage() {
   document.documentElement.lang=lang;
   $$('[data-i18n]').forEach(el=>{ const key=el.dataset.i18n; if(I18N[lang]?.[key]||I18N.en[key]) el.textContent=t(key); });
   $$('[data-i18n-placeholder]').forEach(el=>{ el.placeholder=t(el.dataset.i18nPlaceholder); });
-  if($('#languageSelect')) $('#languageSelect').value=lang;
+  $$('[data-language]').forEach(btn=>{const active=btn.dataset.language===lang;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',active?'true':'false');});
   const current=$('.page.active')?.dataset.page || 'recipes';
   if($('#headerTitle')) $('#headerTitle').textContent=titleForPage(current);
 }
@@ -223,12 +226,25 @@ async function loadAll() {
   recipes = (await idbGetAll('recipes')).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const saved = await idbGet('state', 'app');
   if (saved?.value) state = { ...state, ...saved.value };
+  const fastLanguage = localStorage.getItem('recipe-vault-language');
+  if (['en','fi','it'].includes(fastLanguage)) state.language = fastLanguage;
   applyTheme();
   applyLanguage();
   renderAll();
 }
 async function saveState() {
+  if (['en','fi','it'].includes(state.language)) localStorage.setItem('recipe-vault-language', state.language);
   await idbPut('state', { key: 'app', value: state });
+}
+async function setLanguage(lang) {
+  if (!['en','fi','it'].includes(lang)) return;
+  state.language = lang;
+  localStorage.setItem('recipe-vault-language', lang);
+  applyLanguage();
+  await renderAll();
+  await saveState();
+  applyLanguage();
+  toast(lang==='fi'?'Kieli vaihdettu':lang==='it'?'Lingua cambiata':'Language changed');
 }
 
 function escapeHtml(value = '') {
@@ -337,10 +353,31 @@ function canonicalUnit(raw='') {
   const n=normalizeText(String(raw).replace(/\.$/,''));
   return UNIT_ALIASES[n] || '';
 }
+function looksLikeIngredientGroup(line='') {
+  const raw=String(line||'').trim().replace(/[:：]\s*$/,'');
+  const n=normalizeText(raw);
+  if (!n || raw.length>55 || /\d/.test(raw)) return false;
+  const groups=[
+    'base','crust','dough','batter','filling','topping','frosting','icing','sauce','marinade','garnish','to serve','for serving','starter','main dough',
+    'pohja','taikina','tayte','täyte','kuorrute','kastike','marinadi','koristeluun','tarjoiluun','alkutaikina',
+    'base','impasto','ripieno','farcitura','copertura','glassa','salsa','marinatura','guarnizione','per servire','lievitino'
+  ].map(normalizeText);
+  if (groups.includes(n)) return true;
+  return /^(for|per)\s+[a-zà-ÿ]{3,30}$/i.test(raw) || /^(the|il|lo|la|i|gli|le)\s+[a-zà-ÿ]{3,30}$/i.test(raw);
+}
+function repairIngredientOcr(raw='') {
+  return String(raw)
+    .replace(/^(\d)\s*%\s+(?=(?:dl|cl|ml|l|cup|cups|tazza|tazze)\b)/i,'$1 1/4 ')
+    .replace(/^%\s+(?=(?:dl|cl|ml|l|cup|cups|tazza|tazze)\b)/i,'1/2 ')
+    .replace(/^(\d)\s*(rkl|tl|prk|kpl|ruukku)\b/i,'$1 $2')
+    .replace(/\s+/g,' ').trim();
+}
 function parseIngredientLine(line) {
-  let raw = String(line || '').replace(/^[-•*–—]\s*/, '').trim();
+  let raw = String(line || '').replace(/^[-•*–—]\s*/, '').replace(/^\[Input\]\s*/i,'').trim();
   if (!raw) return null;
-  raw = cleanQty(raw);
+  if (/^#{1,6}\s*/.test(raw)) raw=raw.replace(/^#{1,6}\s*/, '').trim();
+  if (looksLikeIngredientGroup(raw)) return { kind:'group', raw, name:raw.replace(/[:：]\s*$/,''), qty:null, qtyText:'', unit:'', unitCanonical:'', optional:false };
+  raw = repairIngredientOcr(cleanQty(raw));
   // Quantities support integers, decimal comma/dot, fractions, mixed fractions and ranges.
   const m = raw.match(/^((?:\d+\s+\d+\/\d+)|(?:\d+\/\d+)|(?:\d+(?:[.,]\d+)?)(?:\s*[-–—]\s*\d+(?:[.,]\d+)?)?)?\s*([\p{L}.]+)?\s*(.*)$/u);
   let qtyText = (m?.[1] || '').trim();
@@ -349,30 +386,34 @@ function parseIngredientLine(line) {
   let unit = unitCanonical ? maybeUnit.replace(/\.$/,'').toLowerCase() : '';
   let name = (m?.[3] || '').trim();
   if (maybeUnit && !unitCanonical) name = `${maybeUnit} ${name}`.trim();
-  if (!name) name = raw.replace(new RegExp(`^${qtyText.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\s*`),'').trim() || raw;
+  if (!name) name = raw;
   const range = qtyText.match(/^(\d+(?:[.,]\d+)?)\s*[-–—]\s*(\d+(?:[.,]\d+)?)$/);
   let qty = range ? null : parseNumber(qtyText);
-  return { raw, qty, qtyText, unit, unitCanonical, name, optional: /\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw) };
+  return { kind:'ingredient', raw, qty, qtyText, unit, unitCanonical, name, optional: /\b(optional|to taste|halutessasi|valinnainen|maun mukaan|facoltativ[oa]|a piacere|quanto basta|q\.?b\.?)\b/i.test(raw) };
 }
 function ingredientToLine(i) {
   if (!i) return '';
+  if (i.kind==='group') return `## ${i.name}`;
   const qty = i.qtyText || (Number.isFinite(i.qty) ? String(i.qty) : '');
   return [qty, i.unit, i.name].filter(Boolean).join(' ').trim();
 }
 function formatQty(i) {
+  if (i?.kind==='group') return '';
   const q = i.qtyText || (Number.isFinite(i.qty) ? String(i.qty) : '');
   return [q, i.unit].filter(Boolean).join(' ') || '—';
 }
 
 function stripMarkdown(s='') {
-  return s.replace(/!\[[^\]]*\]\([^)]*\)/g,'')
+  return String(s)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,'')
     .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
-    .replace(/^#{1,6}\s+/gm,'')
+    .replace(/\[Input(?::[^\]]*)?\]/gi,'')
+    .replace(/<[^>]+>/g,'')
     .replace(/[*_`>]/g,'')
     .replace(/\r/g,'');
 }
 function extractFirstImageUrl(text='') {
-  const m = text.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)[^)]*\)/i);
+  const m = String(text).match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)[^)]*\)/i);
   return m?.[1] || '';
 }
 function inferCategory(text='') {
@@ -384,12 +425,24 @@ function inferTags(text='') {
   const n = normalizeText(text);
   return TAG_RULES.filter(([,words]) => words.some(w => n.includes(normalizeText(w)))).map(([label]) => label);
 }
+function cleanRecipeLine(line='') {
+  const raw=String(line);
+  const hadBullet=/^\s*[-*•]\s+/.test(raw);
+  let cleaned=stripMarkdown(raw)
+    .replace(/^\s*#{1,6}\s*/, '')
+    .replace(/^\s*[-•]\s+/, '')
+    .replace(/\s+/g,' ')
+    .trim();
+  return hadBullet && cleaned ? `• ${cleaned}` : cleaned;
+}
+
 function headingType(line='') {
-  let n=normalizeText(line.replace(/[:：]\s*$/,''));
+  let n=normalizeText(String(line).replace(/^\s*#{1,6}\s*/,'').replace(/[:：]\s*$/,''));
   if (!n) return '';
   for (const [type,set] of Object.entries(HEADING_SETS)) {
     if (set.has(n)) return type;
     for (const h of set) {
+      if (type==='stop' && n.startsWith(h)) return type;
       if (n.startsWith(h+' ')) {
         const rest=n.slice(h.length+1);
         if (type==='steps' && /\b(time|aika|tempo|min|hour|ore)\b/.test(rest)) continue;
@@ -400,103 +453,243 @@ function headingType(line='') {
   return '';
 }
 function looksLikeIngredient(line='') {
-  const s=line.trim();
-  if (!s || s.length>180 || headingType(s)) return false;
-  if (/^\d+[.)]\s+/.test(s)) return false;
-  if (/^[-•*–—]\s+/.test(line)) return true;
-  if (/^(\d|½|¼|¾|⅓|⅔|⅛)/.test(s) && s.split(/\s+/).length >= 2) return true;
+  const s=String(line).replace(/^•\s*/, '').trim();
+  if (!s || s.length>220 || headingType(s) || looksLikeIngredientGroup(s)) return false;
+  if (/^\d+[.)]\s+[A-ZÀ-ÖØ-Ý]/.test(s) && s.length>45) return false;
+  if (/^(\d|½|¼|¾|⅓|⅔|⅛|%)\s*/.test(s) && s.split(/\s+/).length >= 2) return true;
   const n=normalizeText(s);
-  return UNITS.some(u => { const nu=normalizeText(u); return nu && new RegExp(`\\b${nu.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(n); });
+  const unitStart=UNITS.map(u=>normalizeText(u)).filter(Boolean).sort((a,b)=>b.length-a.length).map(u=>u.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  if (unitStart && new RegExp(`^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|\d+\s+\d+\/\d+|1\/2|1\/4|3\/4)\s*)?(?:${unitStart})\b`,'i').test(n)) return true;
+  // Website recipe cards often include quantity-free optional items such as "pearl sugar optional".
+  return /\b(optional|valinnainen|halutessasi|maun mukaan|to taste|facoltativ[oa]|q\.?b\.?|quanto basta|a piacere)\b/i.test(s) && s.length<90;
 }
 function looksLikeStep(line='') {
-  const s=line.trim();
-  if (!s || headingType(s)) return false;
-  if (/^\d+[.)]\s+/.test(s)) return true;
-  return /^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda)\b/i.test(s);
+  const s=String(line).replace(/^•\s*/, '').trim();
+  if (!s || headingType(s) || looksLikeIngredient(s)) return false;
+  if (/^(?:step|vaihe|passaggio)?\s*\d+[.)\-:]\s*/i.test(s)) return true;
+  if (s.length>45 && /[.!?]$/.test(s)) return true;
+  return /^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|allow|let|scrape|cut|divide|cover|set|scald|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|anna|jätä|jata|siivilöi|siiviloi|pyöräytä|pyorayta|pingota|pane|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda|lascia|copri|dividi|taglia)/i.test(s);
 }
 function cleanStepLine(l='') {
-  return l.replace(/^\s*(?:step|vaihe|passaggio)?\s*\d+[.):\-]?\s*/i,'').replace(/^[-•*–—]\s*/, '').trim();
+  return String(l).replace(/^•\s*/, '').replace(/^\s*(?:step|vaihe|passaggio)?\s*\d+[.):\-]?\s*/i,'').trim();
+}
+function paragraphAwareLines(rawText='') {
+  // Keep source line boundaries. Jina Reader emits recipe-card list items one per line,
+  // and OCR line wraps are merged later with section-aware logic.
+  return String(rawText).replace(/\r/g,'').split('\n').map(cleanRecipeLine).filter(Boolean);
+}
+
+function collectSectionCandidates(lines, type) {
+  const out=[];
+  for(let i=0;i<lines.length;i++){
+    if(headingType(lines[i])!==type) continue;
+    const entries=[];
+    for(let j=i+1;j<lines.length && entries.length<80;j++){
+      const ht=headingType(lines[j]);
+      if(ht) break;
+      if(BOILERPLATE_RE.test(lines[j])) break;
+      entries.push({i:j,text:lines[j]});
+    }
+    out.push({start:i, entries});
+  }
+  return out;
+}
+function ingredientCandidateScore(c) {
+  if(!c) return -999;
+  let qty=0, units=0, groups=0, prose=0, plausible=0;
+  for(const x of c.entries){
+    const s=x.text.replace(/^•\s*/, '').trim();
+    if(looksLikeIngredientGroup(s)){groups++; continue;}
+    if(looksLikeIngredient(s)){plausible++; if(/^(\d|½|¼|¾|⅓|⅔|⅛|%)/.test(s))qty++; if(UNITS.some(u=>new RegExp(`\\b${normalizeText(u)}\\b`).test(normalizeText(s))))units++;}
+    if(s.length>120 || (/\.[ ]/.test(s) && !/\([^)]*\)/.test(s))) prose++;
+  }
+  return plausible*5 + qty*4 + units*2 + groups - prose*4 + Math.min(c.entries.length,25)*.15;
+}
+function stepCandidateScore(c) {
+  if(!c) return -999;
+  let steps=0, verbs=0, ingredientish=0;
+  for(const x of c.entries){
+    const s=x.text.replace(/^•\s*/, '').trim();
+    if(looksLikeStep(s)) steps++;
+    if(/^(add|mix|stir|bake|preheat|let|allow|scrape|cut|cover|laita|sekoita|paista|anna|jätä|jata|siivilöi|siiviloi|aggiungi|mescola|cuoci|inforna|lascia|copri|taglia)\b/i.test(s)) verbs++;
+    if(looksLikeIngredient(s)) ingredientish++;
+  }
+  return steps*4 + verbs*2 - ingredientish*3 + Math.min(c.entries.length,30)*.15;
+}
+function pickBestCandidate(candidates, scorer, preferredAfter=-1) {
+  if(!candidates.length) return null;
+  return [...candidates].sort((a,b)=>{
+    const sa=scorer(a)+(preferredAfter>=0 && a.start>preferredAfter && a.start-preferredAfter<100?3:0);
+    const sb=scorer(b)+(preferredAfter>=0 && b.start>preferredAfter && b.start-preferredAfter<100?3:0);
+    return sb-sa || b.start-a.start;
+  })[0];
+}
+function isMetadataLine(s='') {
+  const n=normalizeText(s);
+  return /\b(prep time|cook time|total time|rest time|resting|servings|yield|valmistusaika|annokset|annosta|kokonaisaika|paistoaika|kypsennysaika|tempo di preparazione|tempo di cottura|tempo totale|porzioni|persone)\b/i.test(s)
+    || /^\d+\s*(?:min|minuutt|minutes?|hours?|tunt|ore)\b/i.test(s)
+    || /^(?:by|author|published|updated|rating)\b/i.test(s);
+}
+function joinIngredientContinuations(entries=[]) {
+  const out=[];
+  let current='';
+  for(const entry of entries){
+    const s=entry.text.replace(/^•\s*/, '').trim();
+    if(!s || BOILERPLATE_RE.test(s) || isMetadataLine(s)) continue;
+    if(looksLikeIngredientGroup(s)){
+      if(current){out.push(current);current='';}
+      out.push(s);continue;
+    }
+    if(looksLikeIngredient(s)){
+      if(current) out.push(current);
+      current=s;continue;
+    }
+    if(current && !looksLikeStep(s) && !headingType(s)){
+      // OCR commonly wraps parenthetical descriptions and long ingredient names.
+      if(/[(-]$/.test(current) || /\b(and|or|tai|ja|o|e|oppure)\s*$/i.test(current) || (current.includes('(') && !current.includes(')'))) current += ' '+s;
+    }
+  }
+  if(current) out.push(current);
+  return out;
+}
+function joinStepContinuations(entries=[]) {
+  const out=[];
+  let current='';
+  for(const entry of entries){
+    const raw=entry.text.trim();
+    const s=cleanStepLine(raw);
+    if(!s || BOILERPLATE_RE.test(s) || headingType(s) || isMetadataLine(s) || looksLikeIngredientGroup(s) || looksLikeIngredient(s)) continue;
+    const bullet=/^•\s*/.test(raw);
+    const numbered=/^(?:\d+[.)]|step\s+\d|vaihe\s+\d|passaggio\s+\d)/i.test(raw.replace(/^•\s*/,''));
+    const strongStart=bullet||numbered||/^(add|mix|stir|heat|cook|bake|preheat|combine|whisk|fold|pour|place|season|serve|bring|simmer|boil|fry|roast|blend|chop|slice|beat|knead|spread|top|drain|rinse|marinate|refrigerate|chill|allow|let|scrape|cut|divide|cover|set|scald|lisaa|lisää|sekoita|kuumenna|keitä|keita|paista|esilämmitä|esilammita|yhdistä|yhdista|vatkaa|kaada|laita|mausta|tarjoile|hauduta|kiehauta|pilko|viipaloi|vaivaa|levitä|levita|valuta|huuhtele|marinoi|jäähdytä|jaahdyta|anna|jätä|jata|siivilöi|siiviloi|pyöräytä|pyorayta|pingota|pane|aggiungi|mescola|scalda|cuoci|inforna|preriscalda|unisci|sbatti|versa|metti|condisci|servi|porta|sobbolli|bollire|friggi|arrostisci|frulla|trita|affetta|impasta|stendi|scola|sciacqua|marina|raffredda|lascia|copri|dividi|taglia)(?=\s|$|[,.])/i.test(s);
+    if(strongStart){if(current)out.push(current);current=s;}
+    else if(current){current+=' '+s;}
+    else if(looksLikeStep(s)){current=s;}
+  }
+  if(current)out.push(current);
+  return out;
+}
+function findBestTitle(lines=[]) {
+  const candidates=[];
+  for(let i=0;i<Math.min(lines.length,22);i++){
+    const l=lines[i].replace(/^•\s*/,'').trim();
+    if(!l||headingType(l)||looksLikeIngredient(l)||looksLikeIngredientGroup(l)||isMetadataLine(l)||BOILERPLATE_RE.test(l))continue;
+    if(l.length<3||l.length>105||/[.!?]$/.test(l)||/^(title|by|author|published|updated|image|source|url|markdown content)\b/i.test(l))continue;
+    const words=l.split(/\s+/).length;
+    if(words<1||words>10)continue;
+    let score=12-Math.abs(words-4)-(words===1?3:0);
+    if(i<8)score+=4;
+    if(/^#/.test(l))score+=2;
+    if(/recipe|resepti|ricetta/i.test(l))score+=1;
+    candidates.push({i,l,score});
+  }
+  candidates.sort((a,b)=>b.score-a.score||a.i-b.i);
+  return candidates[0]||null;
+}
+
+function extractMetadata(text='') {
+  const result=[];
+  const patterns=[
+    ['Prep time',/(?:prep(?:aration)? time|valmistusaika|tempo di preparazione)\s*[:\-]?\s*([^\n|]{2,45})/i],
+    ['Cook time',/(?:cook(?:ing)? time|paistoaika|kypsennysaika|tempo di cottura)\s*[:\-]?\s*([^\n|]{2,45})/i],
+    ['Rest / rise',/(?:rest(?:ing)?(?: and rising)? time|kohotus(?:aika)?|lepoaika|riposo|lievitazione)\s*[:\-]?\s*([^\n|]{2,45})/i],
+    ['Total time',/(?:total time|kokonaisaika|tempo totale)\s*[:\-]?\s*([^\n|]{2,45})/i]
+  ];
+  for(const [label,re] of patterns){
+    const m=String(text).match(re);if(!m)continue;
+    const value=m[1].trim();
+    if(/^(annokset|servings|porzioni|persone)$/i.test(value))continue;
+    result.push(`${label}: ${value}`);
+  }
+  const fin=String(text).match(/VALMISTUSAIKA\s+ANNOKSET[\s\n]+([^\n]{2,35}?)\s+(\d+\s+annosta)/i);
+  if(fin && !result.some(x=>x.startsWith('Prep time')||x.startsWith('Valmistusaika'))) result.push(`Valmistusaika: ${fin[1].trim()}`);
+  return result;
+}
+function extractServings(lines=[], text='') {
+  for(const l of lines){
+    let m=l.match(/^(?:servings?|yield)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].trim().replace(/\s{2,}/g,' ');
+    m=l.match(/^(?:porzioni?|dosi)\s*[:\-]?\s*(.+)$/i); if(m) return m[1].trim();
+    m=l.match(/^(?:annokset|annoksia?)\s*[:\-]?\s*(\d+(?:\s*[-–]\s*\d+)?)/i); if(m) return m[1].trim();
+    m=l.match(/\b(\d+(?:\s*[-–]\s*\d+)?)\s+(annosta|porzioni|persone)\b/i); if(m) return m[1].trim();
+  }
+  const m=String(text).match(/(?:serves?|servings?|yield|annoksia?|annosta|annos|riittää|riittaa|porzioni?|dosi|persone)\s*[:\-]?\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
+  return m?.[1]||'';
+}
+
+function usefulNotesFromSections(lines, chosenStep) {
+  const noteCandidates=collectSectionCandidates(lines,'notes');
+  let chosen=pickBestCandidate(noteCandidates,c=>Math.min(c.entries.length,20)+(chosenStep&&c.start>chosenStep.start?4:0),chosenStep?.start??-1);
+  if(!chosen) return [];
+  return chosen.entries.map(x=>x.text.replace(/^•\s*/,'').trim()).filter(x=>x && x.length<350).slice(0,20);
 }
 function parseRecipeText(rawText, source = {}) {
   const imageUrl = source.imageUrl || extractFirstImageUrl(rawText);
-  const text = stripMarkdown(rawText);
-  let lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  lines = lines.filter(l => !BOILERPLATE_RE.test(l));
-  const types=lines.map(headingType);
-  const firstOf=type=>types.findIndex(x=>x===type);
-  const ingIdx=firstOf('ingredients');
-  const stepIdx=firstOf('steps');
-  const noteIdx=firstOf('notes');
-  const firstSection=[ingIdx,stepIdx,noteIdx].filter(i=>i>=0).sort((a,b)=>a-b)[0] ?? -1;
+  const lines = paragraphAwareLines(rawText).filter(l=>l && !BOILERPLATE_RE.test(l));
+  const ingCandidates=collectSectionCandidates(lines,'ingredients');
+  let chosenIng=pickBestCandidate(ingCandidates,ingredientCandidateScore);
+  const stepCandidates=collectSectionCandidates(lines,'steps');
+  let chosenStep=pickBestCandidate(stepCandidates,stepCandidateScore,chosenIng?.start??-1);
 
-  let title = source.title || '';
-  let titleIdx=-1;
-  if (!title) {
-    const limit=firstSection>0?Math.min(firstSection,10):Math.min(lines.length,10);
-    for(let i=0;i<limit;i++){
-      const l=lines[i];
-      if(l.length>=3 && l.length<120 && !looksLikeIngredient(l) && !headingType(l) && !/^(recipe|resepti|ricetta)$/i.test(l) && !EXTRA_INFO_RE.test(l)) { title=l; titleIdx=i; break; }
-    }
-    if(!title){title=lines[0]||'Untitled recipe';titleIdx=0;}
-  } else titleIdx=lines.findIndex(l=>l===title);
+  const h1=String(rawText).match(/^\s*#\s+([^\n#].+)$/m);
+  const titlePick=findBestTitle(lines);
+  let title=(source.title||h1?.[1]?.trim()||titlePick?.l||'Untitled recipe').replace(/^(?:title\s*:\s*)/i,'').trim();
+  const titleIdx=lines.findIndex(x=>normalizeText(x)===normalizeText(title))>=0?lines.findIndex(x=>normalizeText(x)===normalizeText(title)):(titlePick?.i??-1);
 
-  function sectionEntries(startIdx, type, max=50) {
-    if(startIdx<0) return [];
-    const out=[];
-    for(let i=startIdx+1;i<lines.length && out.length<max;i++){
-      const ht=types[i];
-      if(ht) break;
-      if(BOILERPLATE_RE.test(lines[i])) break;
-      out.push({i,text:lines[i]});
-    }
-    return out;
+  // Explicit section wins only if it actually contains a useful number of ingredients.
+  let ingredientLines=chosenIng && ingredientCandidateScore(chosenIng)>=12 ? joinIngredientContinuations(chosenIng.entries) : [];
+  if(ingredientLines.filter(looksLikeIngredient).length<2){
+    const globalEntries=lines.map((text,i)=>({i,text}));
+    ingredientLines=joinIngredientContinuations(globalEntries).slice(0,60);
   }
-  let ingredientEntries=sectionEntries(ingIdx,'ingredients',50);
-  let stepEntries=sectionEntries(stepIdx,'steps',45);
-  let noteEntries=sectionEntries(noteIdx,'notes',30);
-
-  if (!ingredientEntries.length) ingredientEntries=lines.map((text,i)=>({i,text})).filter(x=>looksLikeIngredient(x.text)).slice(0,45);
-  if (!stepEntries.length) stepEntries=lines.map((text,i)=>({i,text})).filter(x=>looksLikeStep(x.text) && !ingredientEntries.some(y=>y.i===x.i)).slice(0,40);
-
-  // In explicit sections, remove obvious subsection headings but keep quantity-free ingredients such as “salt and pepper”.
-  ingredientEntries=ingredientEntries.filter(x=>!/^((for|to|per)\s+)?(sauce|dressing|topping|filling|marinade|serve|serving|kastike|täyte|tayte|kuorrute|marinadi|tarjoiluun|salsa|ripieno|condimento|marinatura|guarnizione)\s*:?$/i.test(x.text));
-  const ingredientLines=[...new Set(ingredientEntries.map(x=>x.text))];
-  const stepLines=[...new Set(stepEntries.map(x=>cleanStepLine(x.text)).filter(Boolean))];
-  const ingredients=ingredientLines.map(parseIngredientLine).filter(Boolean);
-
-  const used=new Set([titleIdx,ingIdx,stepIdx,noteIdx].filter(i=>i>=0));
-  ingredientEntries.forEach(x=>used.add(x.i)); stepEntries.forEach(x=>used.add(x.i)); noteEntries.forEach(x=>used.add(x.i));
-  const explicitNotes=noteEntries.map(x=>x.text);
-  const contentStart=Math.max(0,titleIdx+1);
-  let stopIdx=types.findIndex((x,i)=>x==='stop' && i>Math.max(ingIdx,stepIdx,noteIdx,titleIdx));
-  if(stopIdx<0) stopIdx=lines.length;
-  const extras=[];
-  for(let i=contentStart;i<stopIdx;i++){
-    const l=lines[i];
-    if(used.has(i)||headingType(l)||BOILERPLATE_RE.test(l)||/^https?:\/\//i.test(l)||l.length>280) continue;
-    const normalized=normalizeText(l);
-    if(!normalized || /^(ingredients|instructions|directions|ainekset|ohjeet|ingredienti|istruzioni)$/.test(normalized)) continue;
-    // Keep metadata and genuinely useful unmatched recipe text; skip obvious social/site chrome.
-    if(EXTRA_INFO_RE.test(l) || (firstSection>=0 && i<firstSection) || /\b(°c|°f|min|mins|minutes|minute|minuutt|tunt|hour|ore|minuti)\b/i.test(l)) extras.push(l);
+  ingredientLines=ingredientLines.filter(x=>looksLikeIngredient(x)||looksLikeIngredientGroup(x));
+  const ingredients=[];
+  for(const line of ingredientLines){
+    const parsed=parseIngredientLine(line);if(!parsed)continue;
+    if(parsed.kind==='group'){
+      if(!ingredients.length || ingredients[ingredients.length-1].kind!=='group') ingredients.push(parsed);
+    } else ingredients.push(parsed);
   }
-  const notes=[...new Set([...explicitNotes,...extras])].slice(0,24).join('\n');
+  while(ingredients.length && ingredients[ingredients.length-1].kind==='group') ingredients.pop();
 
-  const body = `${title}\n${text}`;
-  const servingsMatch = text.match(/(?:serves?|servings?|yield|annoksia?|annosta|annos|riittää|riittaa|porzioni?|dosi|persone)[ \t]*[:\-]?[ \t]*(\d+(?:[ \t]*[-–][ \t]*\d+)?)/i) || text.match(/(?:for|per)?[ \t]*(\d+(?:[ \t]*[-–][ \t]*\d+)?)[ \t]*(?:servings?|annosta|annos|porzioni?|persone)\b/i);
+  let steps=chosenStep ? joinStepContinuations(chosenStep.entries) : [];
+  if(steps.length<2){
+    steps=joinStepContinuations(lines.map((text,i)=>({i,text}))).slice(0,50);
+  }
+  steps=[...new Set(steps)].slice(0,50);
+
+  const meta=extractMetadata(String(rawText));
+  const explicitNotes=usefulNotesFromSections(lines,chosenStep);
+  const intro=[];
+  let introEnd=Math.min(lines.length,Math.max(0,titleIdx+1)+12);
+  for(let j=Math.max(0,titleIdx+1);j<Math.min(lines.length,Math.max(0,titleIdx+1)+18);j++){if(headingType(lines[j])){introEnd=j;break;}}
+  let introBuffer='';
+  for(let i=Math.max(0,titleIdx+1);i<introEnd;i++){
+    const l=lines[i].replace(/^•\s*/,'').trim();
+    if(!l||headingType(l)||looksLikeIngredient(l)||looksLikeIngredientGroup(l)||isMetadataLine(l)||BOILERPLATE_RE.test(l)||/^(title|by|published|updated|rating|jump to|image|url source|markdown content)/i.test(l))continue;
+    if(l.length>320)continue;
+    introBuffer+=(introBuffer?' ':'')+l;
+    if(/[.!?]$/.test(l) && introBuffer.length>=35){intro.push(introBuffer.trim());introBuffer='';if(intro.length>=2)break;}
+  }
+  if(intro.length<2 && introBuffer.trim().length>=35)intro.push(introBuffer.trim());
+  const noteParts=[...meta];
+  if(intro.length) noteParts.push(...intro);
+  if(explicitNotes.length){if(noteParts.length)noteParts.push('');noteParts.push(...explicitNotes);}
+  const notes=noteParts.join('\n').trim();
+  const cleanText=stripMarkdown(String(rawText));
+  const body=`${title}\n${cleanText}`;
   return {
-    id: uid('recipe'), title: title.trim().slice(0,160) || 'Untitled recipe',
-    category: inferCategory(body), tags: inferTags(body), servings: servingsMatch?.[1] || '',
-    ingredients, steps: stepLines, notes, favorite: false,
-    source: { type: source.type || 'text', url: source.url || '', label: source.label || '', filename: source.filename || '' },
-    imageUrl, mediaId: source.mediaId || '', mediaType: source.mediaType || '', thumbnailId: source.thumbnailId || '',
-    createdAt: Date.now(), updatedAt: Date.now()
+    id: uid('recipe'), title:title.slice(0,160), category:inferCategory(body), tags:inferTags(body), servings:extractServings(lines,cleanText),
+    ingredients, steps, notes, favorite:false,
+    source:{type:source.type||'text',url:source.url||'',label:source.label||'',filename:source.filename||''},
+    imageUrl, mediaId:source.mediaId||'',mediaType:source.mediaType||'',thumbnailId:source.thumbnailId||'',createdAt:Date.now(),updatedAt:Date.now()
   };
 }
 
-function sourceLabel(recipe) {
-  const type = recipe.source?.type || 'manual';
-  return ({text:'Text',website:'Web',image:'Photo',pdf:'PDF',video:'Video',manual:'Manual',shared:'Shared'})[type] || type;
-}
+const TAXONOMY_I18N={
+  fi:{Recipe:'Resepti',Dessert:'Jälkiruoka',Baking:'Leivonta',Breakfast:'Aamiainen',Soup:'Keitto',Pasta:'Pasta',Salad:'Salaatti',Drink:'Juoma',Sauce:'Kastike',Dinner:'Pääruoka',Italian:'Italialainen',Finnish:'Suomalainen',Mexican:'Meksikolainen',Indian:'Intialainen',Asian:'Aasialainen',Vegetarian:'Kasvis',Vegan:'Vegaaninen',Quick:'Nopea','High protein':'Proteiinipitoinen',Video:'Video',Instagram:'Instagram'},
+  it:{Recipe:'Ricetta',Dessert:'Dolce',Baking:'Forno',Breakfast:'Colazione',Soup:'Zuppa',Pasta:'Pasta',Salad:'Insalata',Drink:'Bevanda',Sauce:'Salsa',Dinner:'Piatto principale',Italian:'Italiana',Finnish:'Finlandese',Mexican:'Messicana',Indian:'Indiana',Asian:'Asiatica',Vegetarian:'Vegetariana',Vegan:'Vegana',Quick:'Veloce','High protein':'Ricca di proteine',Video:'Video',Instagram:'Instagram'}
+};
+function displayTaxonomy(value=''){return TAXONOMY_I18N[state.language]?.[value]||value;}
 function sourceDisplay(recipe) {
   const type=recipe.source?.type || 'manual';
   return ({text:t('textSource'),website:t('webSource'),image:t('photoSource'),pdf:t('pdfSource'),video:t('videoSource'),manual:t('manualSource'),shared:t('sharedSource')})[type] || sourceLabel(recipe);
@@ -533,7 +726,7 @@ function renderRecipeFilters() {
     if (r.category) counts.set(r.category, (counts.get(r.category)||0)+1);
   }
   const filters = ['All','Favorites', ...[...counts.keys()].sort()];
-  const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||f;
+  const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||displayTaxonomy(f);
   $('#recipeFilters').innerHTML = filters.map(f => `<button class="filter-chip ${state.activeRecipeFilter===f?'active':''}" data-filter="${escapeHtml(f)}">${escapeHtml(filterText(f))}</button>`).join('');
   $$('[data-filter]').forEach(b => b.onclick = () => { state.activeRecipeFilter=b.dataset.filter; saveState(); renderRecipeFilters(); renderRecipes(); });
 }
@@ -544,7 +737,7 @@ function filteredRecipes() {
     if (filter === 'Favorites' && !r.favorite) return false;
     if (filter !== 'All' && filter !== 'Favorites' && sourceLabel(r)!==filter && r.category!==filter) return false;
     if (!q) return true;
-    const hay = normalizeText([r.title,r.category,(r.tags||[]).join(' '),(r.ingredients||[]).map(i=>i.name).join(' '),r.notes].join(' '));
+    const hay = normalizeText([r.title,r.category,(r.tags||[]).join(' '),(r.ingredients||[]).filter(i=>i.kind!=='group').map(i=>i.name).join(' '),r.notes].join(' '));
     return q.split(' ').every(token => hay.includes(token));
   });
   const sort = $('#recipeSort')?.value || 'recent';
@@ -557,7 +750,7 @@ async function recipeCardHtml(r, match=null) {
   let img = r.imageUrl || '';
   if (!img && r.thumbnailId) img = await getMediaUrl(r.thumbnailId);
   if (!img && r.mediaId && (r.mediaType||'').startsWith('image/')) img = await getMediaUrl(r.mediaId);
-  const tags = [r.category, ...(r.tags||[])].filter(Boolean).slice(0,2);
+  const tags = [r.category, ...(r.tags||[])].filter(Boolean).slice(0,2).map(displayTaxonomy);
   return `<article class="recipe-card">
     ${match ? `<div class="match-badge">${Math.round(match.score*100)}% ${t('match')}</div>`:''}
     ${r.favorite ? `<button class="favorite-dot" data-fav="${r.id}" aria-label="Remove favorite">★</button>`:''}
@@ -566,7 +759,7 @@ async function recipeCardHtml(r, match=null) {
       <div class="recipe-card-body">
         <h3>${escapeHtml(r.title)}</h3>
         <div class="card-meta">
-          <span>${(r.ingredients||[]).length} ${((r.ingredients||[]).length===1?t('ingredientSingular'):t('ingredientPlural'))}</span>
+          <span>${(r.ingredients||[]).filter(i=>i.kind!=='group').length} ${((r.ingredients||[]).filter(i=>i.kind!=='group').length===1?t('ingredientSingular'):t('ingredientPlural'))}</span>
           <span>·</span><span>${escapeHtml(sourceDisplay(r))}</span>
           ${match ? `<span>·</span><span>${match.matched}/${match.total} ${t('atHomeLower')}</span>`:''}
         </div>
@@ -602,7 +795,7 @@ function allAvailable() {
   return [...state.available, ...($('#includePantryToggle')?.checked ? state.pantry : [])].filter(Boolean);
 }
 function computeMatch(recipe, available) {
-  const required=(recipe.ingredients||[]).filter(i=>!i.optional && i.name);
+  const required=(recipe.ingredients||[]).filter(i=>i.kind!=='group' && !i.optional && i.name);
   if (!required.length) return {score:0,matched:0,total:0,missing:[]};
   const matched = required.filter(i=>fuzzyHas(available,i));
   return { score: matched.length/required.length, matched:matched.length, total:required.length, missing:required.filter(i=>!fuzzyHas(available,i)) };
@@ -683,9 +876,9 @@ async function openRecipe(id) {
     <div class="recipe-detail-body">
       <div class="eyebrow">${escapeHtml(sourceDisplay(r).toUpperCase())}${r.servings?` · ${escapeHtml(r.servings)} ${escapeHtml(t('servingsUpper'))}`:''}</div>
       <h2>${escapeHtml(r.title)}</h2>
-      <div class="detail-tags">${[r.category,...(r.tags||[])].filter(Boolean).map(t=>`<span class="mini-tag">${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="detail-tags">${[r.category,...(r.tags||[])].filter(Boolean).map(displayTaxonomy).map(x=>`<span class="mini-tag">${escapeHtml(x)}</span>`).join('')}</div>
       <div class="detail-actions"><button class="primary" id="detailShopBtn">${escapeHtml(t('addToShopping'))}</button><button class="secondary" id="detailPantryMatchBtn">${escapeHtml(t('checkWhatIHave'))}</button></div>
-      <div class="detail-section"><h3>${escapeHtml(t('ingredients'))}</h3><ul class="ingredient-list">${(r.ingredients||[]).map(i=>`<li><span class="ingredient-qty">${escapeHtml(formatQty(i))}</span><span>${escapeHtml(i.name)}${i.optional?` <small class="muted">(${escapeHtml(t('optional'))})</small>`:''}</span></li>`).join('') || `<li class="muted">${escapeHtml(t('noIngredients'))}</li>`}</ul></div>
+      <div class="detail-section"><h3>${escapeHtml(t('ingredients'))}</h3><ul class="ingredient-list">${(r.ingredients||[]).map(i=>i.kind==='group'?`<li class="ingredient-group"><strong>${escapeHtml(i.name)}</strong></li>`:`<li><span class="ingredient-qty">${escapeHtml(formatQty(i))}</span><span>${escapeHtml(i.name)}${i.optional?` <small class="muted">(${escapeHtml(t('optional'))})</small>`:''}</span></li>`).join('') || `<li class="muted">${escapeHtml(t('noIngredients'))}</li>`}</ul></div>
       <div class="detail-section"><h3>${escapeHtml(t('steps'))}</h3><ol class="step-list">${(r.steps||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('') || `<li class="muted">${escapeHtml(t('noSteps'))}</li>`}</ol></div>
       ${r.notes?`<div class="detail-section"><h3>${escapeHtml(t('notes'))}</h3><div class="muted" style="white-space:pre-wrap;line-height:1.5">${escapeHtml(r.notes)}</div></div>`:''}
       ${sourceMedia}
@@ -699,6 +892,7 @@ function openShoppingPicker(recipeId) {
   const r=recipes.find(x=>x.id===recipeId); if(!r)return;
   pendingShoppingRecipeId=recipeId;
   $('#shoppingIngredientPicker').innerHTML=(r.ingredients||[]).map((i,idx)=>{
+    if(i.kind==='group') return `<div class="picker-group">${escapeHtml(i.name)}</div>`;
     const home=fuzzyHas(state.pantry,i);
     return `<label class="picker-item"><input type="checkbox" data-pick-ingredient="${idx}" ${home?'':'checked'}><span><strong>${escapeHtml(ingredientToLine(i))}</strong>${home?`<span class="at-home-badge">${escapeHtml(t('alreadyAtHome'))}</span>`:''}</span></label>`;
   }).join('') || `<p class="muted">${escapeHtml(t('noIngredientsAvailable'))}</p>`;
@@ -812,57 +1006,39 @@ async function loadTesseract() {
   });
   return window.Tesseract;
 }
+async function prepareOcrImage(blob) {
+  try{
+    const bitmap=await createImageBitmap(blob);
+    const maxW=1800;
+    const scale=Math.min(3,Math.max(1.35,maxW/Math.max(1,bitmap.width)));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+    canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const px=data.data;
+    for(let i=0;i<px.length;i+=4){
+      const gray=.299*px[i]+.587*px[i+1]+.114*px[i+2];
+      const c=Math.max(0,Math.min(255,(gray-128)*1.45+128));
+      px[i]=px[i+1]=px[i+2]=c;
+    }
+    ctx.putImageData(data,0,0);
+    return await new Promise(r=>canvas.toBlob(r,'image/png'));
+  }catch{return blob;}
+}
 async function ocrImage(blob, label='image') {
   const T=await loadTesseract();
   setStatus(`Reading text from ${label}…`);
-  const result=await T.recognize(blob,'eng+fin+ita',{logger:m=>{if(m.status==='recognizing text')setStatus(`OCR ${Math.round((m.progress||0)*100)}% · ${label}`);}});
+  const prepared=await prepareOcrImage(blob);
+  const result=await T.recognize(prepared||blob,'eng+fin+ita',{
+    logger:m=>{if(m.status==='recognizing text')setStatus(`OCR ${Math.round((m.progress||0)*100)}% · ${label}`);},
+    tessedit_pageseg_mode:'3',
+    preserve_interword_spaces:'1'
+  });
   return result?.data?.text||'';
 }
-async function imageThumbnail(blob, max=1000) {
-  const bitmap=await createImageBitmap(blob);
-  const scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
-  const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
-  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
-  return await new Promise(r=>canvas.toBlob(r,'image/jpeg',.84));
-}
-async function seekVideo(video,time) {
-  return new Promise((resolve,reject)=>{
-    const onSeek=()=>{video.removeEventListener('seeked',onSeek);resolve();};
-    video.addEventListener('seeked',onSeek,{once:true});
-    video.currentTime=clamp(time,0,Math.max(0,video.duration-.05));
-    setTimeout(()=>reject(new Error('Video seek timeout')),5000);
-  });
-}
-async function extractVideoFrames(file) {
-  const url=URL.createObjectURL(file);
-  const video=document.createElement('video');
-  video.preload='metadata';video.muted=true;video.playsInline=true;video.src=url;
-  await new Promise((resolve,reject)=>{video.onloadedmetadata=resolve;video.onerror=reject;});
-  const duration=Number.isFinite(video.duration)?video.duration:1;
-  const points=[.04,.2,.4,.6,.8,.96].map(f=>duration*f);
-  const frames=[];
-  for(let idx=0;idx<points.length;idx++){
-    setStatus(`Sampling video frame ${idx+1} of ${points.length}…`);
-    try{await seekVideo(video,points[idx]);}catch{}
-    const maxW=760, scale=Math.min(1,maxW/(video.videoWidth||maxW));
-    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round((video.videoWidth||720)*scale));canvas.height=Math.max(1,Math.round((video.videoHeight||1280)*scale));
-    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-    const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.78));
-    if(blob)frames.push(blob);
-  }
-  URL.revokeObjectURL(url);
-  return frames;
-}
-function dedupeOcrText(texts) {
-  const seen=[];
-  for(const text of texts){
-    for(const line of text.split('\n').map(x=>x.trim()).filter(x=>x.length>1)){
-      const n=normalizeText(line);if(!n)continue;
-      if(!seen.some(x=>ingredientSimilarity(x,line)>.9 || normalizeText(x)===n))seen.push(line);
-    }
-  }
-  return seen.join('\n');
-}
+
 async function processFile(file) {
   const keep=$('#keepOriginalToggle').checked;
   const type=file.type||'';
@@ -1045,7 +1221,8 @@ function bindEvents(){
   $('#exportBtn').onclick=exportBackup;
   $('#importBackupInput').onchange=e=>{if(e.target.files[0])importBackup(e.target.files[0]);};
   $('#themeSelect').onchange=async e=>{state.theme=e.target.value;await saveState();applyTheme();};
-  $('#languageSelect').onchange=async e=>{state.language=e.target.value;await saveState();applyLanguage();renderAll();};
+  $$('[data-language]').forEach(btn=>btn.addEventListener('click',()=>setLanguage(btn.dataset.language)));
+  document.addEventListener('change',e=>{if(e.target?.id==='languageSelect') setLanguage(e.target.value);});
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system')applyTheme();});
   $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],theme:'system',language:state.language||'en',activeRecipeFilter:'All'};recipes=[];await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
 
@@ -1062,7 +1239,19 @@ async function init(){
   bindEvents();
   await loadAll();
   const hash=location.hash.replace('#','');if(['cook','import','shopping','settings'].includes(hash))go(hash);else go('recipes');
-  if('serviceWorker' in navigator){try{await navigator.serviceWorker.register('./sw.js');}catch(e){console.warn('SW registration failed',e);}}
+  if('serviceWorker' in navigator){
+    try{
+      let refreshing=false;
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{
+        if(refreshing)return;
+        refreshing=true;
+        location.reload();
+      });
+      const reg=await navigator.serviceWorker.register('./sw.js?v=5',{updateViaCache:'none'});
+      await reg.update().catch(()=>{});
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
+    }catch(e){console.warn('SW registration failed',e);}
+  }
   if(matchMedia('(display-mode: standalone)').matches) $('#installBtn').textContent=t('installed');
   await handleSharedImport();
 }
