@@ -1,6 +1,6 @@
 const DB_NAME = 'recipe-vault-db';
 const DB_VERSION = 1;
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -120,7 +120,7 @@ let confirmResolver = null;
 const I18N = {
   en: {
     privateLibrary:'PRIVATE RECIPE LIBRARY', recipes:'Recipes', cook:'Cook', import:'Import', shopping:'Shopping', settings:'Settings',
-    searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newest:'Newest', az:'A–Z', favorites:'Favorites', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
+    searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newestFirst:'Newest added first', newest:'Newest', az:'A–Z', favorites:'Favorites', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
     whatCanIMake:'WHAT CAN I MAKE?', matchWhatYouHave:'Match what you have', matcherHelp:'Type ingredients loosely. The matcher understands English, Finnish and Italian, plus plurals, preparation words and common synonyms.', availablePlaceholder:'e.g. tomato, pasta, parmesan', add:'Add', includePantry:'Include pantry', includePantryHelp:'Use ingredients you have saved at home.', addFewIngredients:'Add a few ingredients', matchEmptyText:'Your recipes will be ranked by how many required ingredients you already have.',
     text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses Jina Reader when a site cannot be read directly. The URL is sent to that external service for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
     shoppingList:'SHOPPING LIST', addAnything:'Add anything…', clearChecked:'Clear checked', listEmpty:'Your list is empty', listEmptyText:'Add ingredients from any recipe, or type unrelated shopping items above.', atHome:'AT HOME', pantry:'Pantry', pantryHelp:'Saved pantry items are automatically excluded when you add missing recipe ingredients to your shopping list.', pantryPlaceholder:'Add pantry ingredient…', nothingSaved:'Nothing saved yet.',
@@ -131,7 +131,7 @@ const I18N = {
   },
   fi: {
     privateLibrary:'OMA RESEPTIKIRJASTO', recipes:'Reseptit', cook:'Kokkaa', import:'Tuo', shopping:'Ostokset', settings:'Asetukset',
-    searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
+    searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newestFirst:'Uusimmat lisäykset ensin', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
     whatCanIMake:'MITÄ VOIN TEHDÄ?', matchWhatYouHave:'Etsi aineksillasi', matcherHelp:'Kirjoita ainekset vapaasti. Haku ymmärtää englantia, suomea ja italiaa sekä taivutuksia, valmistelusanoja ja tavallisia synonyymejä.', availablePlaceholder:'esim. tomaatti, pasta, parmesaani', add:'Lisää', includePantry:'Sisällytä kotivarasto', includePantryHelp:'Käytä myös kotiin tallennettuja aineksia.', addFewIngredients:'Lisää muutama aines', matchEmptyText:'Reseptit järjestetään sen mukaan, kuinka moni tarvittava aines sinulla jo on.',
     text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää Jina Readeria, jos sivua ei voi lukea suoraan. URL lähetetään palveluun tekstin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
     shoppingList:'OSTOSLISTA', addAnything:'Lisää mitä tahansa…', clearChecked:'Poista rastitetut', listEmpty:'Ostoslista on tyhjä', listEmptyText:'Lisää aineksia resepteistä tai kirjoita listaan muita ostoksia.', atHome:'KOTONA', pantry:'Kotivarasto', pantryHelp:'Kotivarastoon tallennetut ainekset jätetään automaattisesti pois, kun lisäät puuttuvat reseptiainekset ostoslistalle.', pantryPlaceholder:'Lisää aines kotivarastoon…', nothingSaved:'Ei vielä tallennettuja aineksia.',
@@ -142,7 +142,7 @@ const I18N = {
   },
   it: {
     privateLibrary:'RACCOLTA RICETTE PRIVATA', recipes:'Ricette', cook:'Cucina', import:'Importa', shopping:'Spesa', settings:'Impostazioni',
-    searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
+    searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newestFirst:'Aggiunte più recenti prima', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
     whatCanIMake:'COSA POSSO CUCINARE?', matchWhatYouHave:'Abbina ciò che hai', matcherHelp:'Scrivi gli ingredienti liberamente. La ricerca comprende inglese, finlandese e italiano, oltre a plurali, termini di preparazione e sinonimi comuni.', availablePlaceholder:'es. pomodoro, pasta, parmigiano', add:'Aggiungi', includePantry:'Includi dispensa', includePantryHelp:'Usa anche gli ingredienti salvati a casa.', addFewIngredients:'Aggiungi alcuni ingredienti', matchEmptyText:'Le ricette saranno ordinate in base a quanti ingredienti necessari hai già.',
     text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa Jina Reader quando un sito non può essere letto direttamente. L’URL viene inviato al servizio per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
     shoppingList:'LISTA DELLA SPESA', addAnything:'Aggiungi qualsiasi cosa…', clearChecked:'Rimuovi selezionati', listEmpty:'La lista è vuota', listEmptyText:'Aggiungi ingredienti da una ricetta oppure altri articoli manualmente.', atHome:'A CASA', pantry:'Dispensa', pantryHelp:'Gli ingredienti salvati in dispensa vengono esclusi automaticamente quando aggiungi alla spesa quelli mancanti di una ricetta.', pantryPlaceholder:'Aggiungi ingrediente in dispensa…', nothingSaved:'Ancora nessun ingrediente salvato.',
@@ -225,10 +225,31 @@ function idbClear(store) {
   });
 }
 
+function timestampFromRecipeId(id) {
+  const part = String(id || '').split('_')[1];
+  if (!part) return 0;
+  const n = parseInt(part, 36);
+  // Accept only plausible millisecond timestamps.
+  return Number.isFinite(n) && n > 946684800000 && n < 4102444800000 ? n : 0;
+}
+
 async function loadAll() {
-  recipes = (await idbGetAll('recipes')).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  recipes = await idbGetAll('recipes');
+  // Older builds did not always preserve a dedicated date-added value. Backfill it
+  // from the best timestamp we have, then keep library order based on date added.
+  let migratedDates = false;
+  for (const r of recipes) {
+    if (!Number.isFinite(Number(r.createdAt)) || Number(r.createdAt) <= 0) {
+      r.createdAt = timestampFromRecipeId(r.id) || Number(r.updatedAt) || Date.now();
+      migratedDates = true;
+    }
+  }
+  if (migratedDates) for (const r of recipes) await idbPut('recipes', r);
+  recipes.sort((a,b) => (Number(b.createdAt)||Number(b.updatedAt)||0) - (Number(a.createdAt)||Number(a.updatedAt)||0));
   const saved = await idbGet('state', 'app');
   if (saved?.value) state = { ...state, ...saved.value };
+  // The library should always open showing the complete collection.
+  state.activeRecipeFilter = 'All';
   const fastLanguage = localStorage.getItem('recipe-vault-language');
   if (['en','fi','it'].includes(fastLanguage)) state.language = fastLanguage;
   const fastMeasurements = localStorage.getItem('recipe-vault-measurements');
@@ -923,6 +944,7 @@ function renderRecipeFilters() {
     if (r.category) counts.set(r.category, (counts.get(r.category)||0)+1);
   }
   const filters = ['All','Favorites', ...[...counts.keys()].sort()];
+  if (!filters.includes(state.activeRecipeFilter)) state.activeRecipeFilter = 'All';
   const filterText=f=>f==='All'?t('all'):f==='Favorites'?t('favorites'):({Text:t('textSource'),Web:t('webSource'),Photo:t('photoSource'),PDF:t('pdfSource'),Video:t('videoSource'),Manual:t('manualSource'),Shared:t('sharedSource')})[f]||displayTaxonomy(f);
   $('#recipeFilters').innerHTML = filters.map(f => `<button class="filter-chip ${state.activeRecipeFilter===f?'active':''}" data-filter="${escapeHtml(f)}">${escapeHtml(filterText(f))}</button>`).join('');
   $$('[data-filter]').forEach(b => b.onclick = () => { state.activeRecipeFilter=b.dataset.filter; saveState(); renderRecipeFilters(); renderRecipes(); });
@@ -937,10 +959,9 @@ function filteredRecipes() {
     const hay = normalizeText([r.title,r.category,(r.tags||[]).join(' '),(r.ingredients||[]).filter(i=>i.kind!=='group').map(i=>i.name).join(' '),r.notes].join(' '));
     return q.split(' ').every(token => hay.includes(token));
   });
-  const sort = $('#recipeSort')?.value || 'recent';
-  if (sort==='title') out.sort((a,b)=>a.title.localeCompare(b.title));
-  else if (sort==='favorite') out.sort((a,b)=>Number(b.favorite)-Number(a.favorite) || (b.updatedAt||0)-(a.updatedAt||0));
-  else out.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  // Library order is always the order recipes were added, newest first.
+  // Editing or favoriting a recipe no longer jumps it back to the top.
+  out.sort((a,b)=>(Number(b.createdAt)||Number(b.updatedAt)||0)-(Number(a.createdAt)||Number(a.updatedAt)||0));
   return out;
 }
 async function recipeCardHtml(r, match=null) {
@@ -1119,7 +1140,7 @@ async function saveRecipe(recipe) {
   await idbPut('recipes',recipe);
   const idx=recipes.findIndex(r=>r.id===recipe.id);
   if(idx>=0) recipes[idx]=recipe; else recipes.unshift(recipe);
-  recipes.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  recipes.sort((a,b)=>(Number(b.createdAt)||Number(b.updatedAt)||0)-(Number(a.createdAt)||Number(a.updatedAt)||0));
   renderAll();
 }
 function openEditor(recipe, isNew=false) {
@@ -1471,7 +1492,6 @@ function bindEvents(){
   $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   $('#quickImportBtn').onclick=()=>go('import');
   $('#recipeSearch').oninput=()=>renderRecipes();
-  $('#recipeSort').onchange=()=>renderRecipes();
   $('#includePantryToggle').onchange=()=>renderMatches();
   $('#addAvailableIngredient').onclick=async()=>{const input=$('#availableIngredientInput');if(addUniqueIngredient(state.available,input.value)){input.value='';await saveState();renderAvailable();renderMatches();}else input.value='';};
   $('#availableIngredientInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#addAvailableIngredient').click();}};
@@ -1546,7 +1566,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=7',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=8',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}

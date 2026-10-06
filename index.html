@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=7" />
+  <link rel="manifest" href="manifest.webmanifest?v=8" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <header class="app-header">
@@ -32,11 +32,7 @@
           <div class="eyebrow" data-i18n="yourCollection">YOUR COLLECTION</div>
           <h2 data-i18n="recipeLibrary">Recipe library</h2>
         </div>
-        <select id="recipeSort" class="compact-select" aria-label="Sort recipes">
-          <option value="recent" data-i18n="newest">Newest</option>
-          <option value="title" data-i18n="az">A–Z</option>
-          <option value="favorite" data-i18n="favorites">Favorites</option>
-        </select>
+<div class="library-order" data-i18n="newestFirst">Newest added first</div>
       </div>
       <div id="recipeGrid" class="recipe-grid"></div>
       <div id="recipeEmpty" class="empty-card hidden">
@@ -331,6 +327,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=7"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>
