@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=11" />
+  <link rel="manifest" href="manifest.webmanifest?v=12" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <header class="app-header">
@@ -295,14 +295,21 @@
           <input id="recipePhotoInput" class="hidden" type="file" accept="image/*" />
         </div>
         <label><span data-i18n="title">Title</span><input id="editTitle" required /></label>
-        <div class="two-col">
+        <div class="recipe-meta-editor">
           <label><span data-i18n="servings">Servings</span><input id="editServings" placeholder="e.g. 4" data-i18n-placeholder="servingsPlaceholder" /></label>
-          <label><span data-i18n="category">Category</span><input id="editCategory" placeholder="Dinner, baking…" data-i18n-placeholder="categoryPlaceholder" /></label>
+          <label><span data-i18n="prepTime">Prep time</span><input id="editPrepTime" placeholder="e.g. 30 mins" data-i18n-placeholder="prepTimePlaceholder" /></label>
+          <label><span data-i18n="cookBakeTime">Cook / bake time</span><input id="editCookTime" placeholder="e.g. 30 mins" data-i18n-placeholder="cookBakeTimePlaceholder" /></label>
+          <label><span data-i18n="restRiseTime">Rest / rise time</span><input id="editRestTime" placeholder="e.g. 3 hrs 40 mins" data-i18n-placeholder="restRiseTimePlaceholder" /></label>
+          <label><span data-i18n="totalTime">Total time</span><input id="editTotalTime" placeholder="e.g. 4 hrs 40 mins" data-i18n-placeholder="totalTimePlaceholder" /></label>
+          <label><span data-i18n="ovenTemperature">Oven</span><input id="editTemperature" placeholder="e.g. 180°C / 350°F" data-i18n-placeholder="ovenTemperaturePlaceholder" /></label>
         </div>
-        <label><span data-i18n="tags">Tags</span><input id="editTags" placeholder="Italian, vegetarian, quick…" data-i18n-placeholder="tagsPlaceholder" /></label>
+        <div class="two-col">
+          <label><span data-i18n="category">Category</span><input id="editCategory" placeholder="Dinner, baking…" data-i18n-placeholder="categoryPlaceholder" /></label>
+          <label><span data-i18n="tags">Tags</span><input id="editTags" placeholder="Italian, vegetarian, quick…" data-i18n-placeholder="tagsPlaceholder" /></label>
+        </div>
         <label><span data-i18n="ingredients">Ingredients</span><textarea id="editIngredients" rows="10" placeholder="One ingredient per line" data-i18n-placeholder="ingredientsPlaceholder"></textarea></label>
         <label><span data-i18n="steps">Steps</span><textarea id="editSteps" rows="12" placeholder="One step per line" data-i18n-placeholder="stepsPlaceholder"></textarea></label>
-        <label><span data-i18n="notes">Notes / extra information</span><textarea id="editNotes" rows="6" data-i18n-placeholder="notesPlaceholder" placeholder="Tips, timing, substitutions, storage, or anything that did not fit elsewhere"></textarea></label>
+        <label><span data-i18n="notes">Notes / extra information</span><textarea id="editNotes" rows="6" data-i18n-placeholder="notesPlaceholder" placeholder="Tips, substitutions, storage, or anything that did not fit elsewhere"></textarea></label>
         <label><span data-i18n="sourceUrl">Source URL</span><input id="editSourceUrl" type="url" placeholder="https://…" /></label>
         <div class="editor-danger">
           <button type="button" id="deleteRecipeBtn" class="danger hidden" data-i18n="deleteRecipe">Delete recipe</button>
@@ -350,6 +357,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

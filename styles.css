@@ -273,3 +273,6 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .skeleton-line { height:10px; width:58%; margin:9px 0; border-radius:999px; background:var(--surface-2); opacity:.75; }
 .skeleton-line.wide { width:82%; height:15px; }
 .library-no-results { grid-column:1/-1; padding:28px 18px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius); }
+
+/* Structured recipe facts under title */
+.recipe-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0 14px}.recipe-fact{padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);min-width:0}.recipe-fact span{display:block;font-size:9px;font-weight:850;letter-spacing:.055em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}.recipe-fact strong{display:block;font-size:13px;line-height:1.25;overflow-wrap:anywhere}.recipe-meta-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}@media(max-width:520px){.recipe-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.recipe-meta-editor{grid-template-columns:1fr 1fr}}
