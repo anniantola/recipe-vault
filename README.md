@@ -1,52 +1,36 @@
-# Recipe Vault
+# Recipe Vault v16
 
-Local-first recipe library PWA for GitHub Pages.
+Local-first recipe library, pantry matcher and shopping list for GitHub Pages.
 
-## Features
-- Import recipes from pasted text, websites, PDFs, photos and downloaded videos/Reels.
-- OCR supports English, Finnish and Italian.
-- Recipe parsing recognizes English, Finnish and Italian headings, units and common ingredient synonyms.
-- UI language can be switched between English, Finnish and Italian in Settings.
-- Parsed extra information is saved into Notes / extra information instead of being discarded.
-- Fuzzy ingredient matching and pantry-aware recipe suggestions.
-- Shopping list from recipe ingredients plus manual shopping items.
-- IndexedDB storage, JSON backup/restore, offline app shell and Android PWA share target.
+## v16 overhaul
+
+- Normalized recipe model: description, yield, timings, oven temperature, ingredients, steps, equipment, notes/tips, nutrition and source are separate fields.
+- Explicit taxonomy: recipe type, cuisine, dietary labels and traits no longer compete for one category field.
+- Source-specific import pipeline: JSON-LD/recipe-card websites, PDF text + OCR fallback, image OCR, video-frame OCR and pasted text all converge to one RecipeDraft format.
+- Import validation: every imported draft gets a quality score and specific review warnings before saving.
+- PDF text-quality detection: broken glyph text triggers rendered-page OCR instead of being trusted.
+- Structured mobile editor: ingredient amount/unit/name/note/optional fields, ingredient sections, reorderable steps and separate equipment/nutrition fields.
+- Duplicate detection by normalized source URL or file SHA-256.
+- Pantry matching weights main ingredients more heavily than staples and distinguishes "ready", "missing only staples" and "missing main ingredients".
+- Built-in cover presets by recipe type; no embedded SVG needs to be saved in every recipe.
+- Compact JSON backup contains recipes/settings only. Full ZIP backup stores `recipes.json` and binary media separately under `/media`.
+- Existing v1-v15 recipes and legacy JSON backups are migrated on load/import.
+
+## Files
+
+All app files remain in the repository root:
+
+- `index.html`
+- `app.js`
+- `recipe-core.js`
+- `styles.css`
+- `manifest.webmanifest`
+- `sw.js`
+- `icon-192.png`
+- `icon-512.png`
+
+Keep the GitHub Pages deployment workflow (`.github/workflows/deploy.yml`) separate, as in the other apps.
 
 ## Deployment
-Upload the app files to the repository root. Add the deployment workflow separately as `.github/workflows/deploy.yml`, then set GitHub Pages Source to **GitHub Actions**.
 
-
-## Measurements
-Recipe amounts can be displayed in Metric or US customary units. Conversions are display-only; the original imported quantities remain stored unchanged.
-
-
-## PDF import v7
-PDF text is rebuilt from page coordinates before parsing, so headings, ingredients, wrapped instructions, notes and nutrition stay in visual reading order instead of being flattened into a single line. Recipe-export metadata and source URLs are also preserved when available.
-
-
-## Recipe library v14
-The Recipes page now always opens on All recipes and orders the collection by date added, newest first. Editing or favoriting a recipe does not change its position. Obsolete saved filters are reset automatically.
-
-
-## v13
-Fixes the recipe-library cold-start rendering race so Newest/A–Z/Favorites populate correctly immediately after reload.
-
-
-## v13 structured recipe cards
-Imports now store prep time, cook/bake time, rest/rise time, total time, servings and oven temperature as dedicated fields shown directly under the recipe title. PDF parsing was tightened using the Chocolate Panettone export as a regression case.
-
-
-## v13 website import
-Website import now detects and extracts the actual printable recipe-card block (including WPRM print pages) instead of parsing surrounding article text. It uses Jina Reader JSON mode first with a plain-text fallback.
-
-
-## v14 website import transport fix
-- Website imports no longer rely on a browser-direct request to Jina Reader, which can be blocked by CORS in an installed GitHub Pages PWA.
-- The app fetches website HTML through a CORS relay, extracts Schema.org Recipe JSON-LD when available, and falls back to cleaned recipe-card text.
-- If direct relayed HTML extraction fails, Jina Reader is used through the relay as a second fallback.
-- This specifically fixes WordPress/WPRM print URLs such as Marcellina In Cucina recipe cards.
-
-
-## v15
-- Pantry is the primary ingredient list on the Cook page; temporary ingredients are secondary.
-- Common pasta shapes (spaghetti, penne, tagliatelle, linguine, macaroni, fusilli, rigatoni, farfalle, orecchiette and lasagna) normalize to `pasta` for matching while keeping their original display name.
+Upload/replace the root files, commit to `main`, and keep GitHub Pages configured to **GitHub Actions**. The existing deployment workflow does not need to change.

@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=15" />
+  <link rel="manifest" href="manifest.webmanifest?v=16" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <header class="app-header">
@@ -229,19 +229,13 @@
       <div class="settings-group">
         <div class="eyebrow" data-i18n="data">DATA</div>
         <h2 data-i18n="backupRestore">Backup & restore</h2>
-        <p class="muted" data-i18n="backupHelp">Your data is stored locally on this device. Export a JSON backup before clearing browser/app data or moving phones.</p>
-        <label class="toggle-row">
-          <span>
-            <strong data-i18n="includeMedia">Include recipe media</strong>
-            <small data-i18n="includeMediaHelp">Includes stored photos, PDFs and videos; backups can become large.</small>
-          </span>
-          <input id="backupMediaToggle" type="checkbox" checked />
-        </label>
-        <div class="button-grid">
-          <button id="exportBtn" class="secondary" data-i18n="exportJson">Export JSON</button>
+        <p class="muted" data-i18n="backupHelp">Your data is stored locally on this device. Compact JSON keeps recipes and settings small; Full ZIP also includes stored photos, PDFs and videos.</p>
+        <div class="button-grid backup-grid">
+          <button id="exportBtn" class="secondary" data-i18n="exportJson">Export compact JSON</button>
+          <button id="exportFullZipBtn" class="secondary" data-i18n="exportFullZip">Export full ZIP</button>
           <label class="secondary button-like">
-            <input id="importBackupInput" type="file" accept="application/json,.json" />
-            <span data-i18n="importJson">Import JSON</span>
+            <input id="importBackupInput" type="file" accept="application/json,.json,application/zip,.zip" />
+            <span data-i18n="importBackup">Import backup</span>
           </label>
         </div>
         <div id="storageInfo" class="storage-info"></div>
@@ -297,7 +291,9 @@
           <button type="button" id="changeRecipePhotoBtn" class="secondary wide" data-i18n="changePhoto">Change photo</button>
           <input id="recipePhotoInput" class="hidden" type="file" accept="image/*" />
         </div>
+        <div id="importQualityPanel" class="import-quality hidden" aria-live="polite"></div>
         <label><span data-i18n="title">Title</span><input id="editTitle" required /></label>
+        <label><span data-i18n="description">Description</span><textarea id="editDescription" rows="3" placeholder="Short recipe description" data-i18n-placeholder="descriptionPlaceholder"></textarea></label>
         <div class="recipe-meta-editor">
           <label><span data-i18n="servings">Servings</span><input id="editServings" placeholder="e.g. 4" data-i18n-placeholder="servingsPlaceholder" /></label>
           <label><span data-i18n="prepTime">Prep time</span><input id="editPrepTime" placeholder="e.g. 30 mins" data-i18n-placeholder="prepTimePlaceholder" /></label>
@@ -306,13 +302,23 @@
           <label><span data-i18n="totalTime">Total time</span><input id="editTotalTime" placeholder="e.g. 4 hrs 40 mins" data-i18n-placeholder="totalTimePlaceholder" /></label>
           <label><span data-i18n="ovenTemperature">Oven</span><input id="editTemperature" placeholder="e.g. 180°C / 350°F" data-i18n-placeholder="ovenTemperaturePlaceholder" /></label>
         </div>
-        <div class="two-col">
-          <label><span data-i18n="category">Category</span><input id="editCategory" placeholder="Dinner, baking…" data-i18n-placeholder="categoryPlaceholder" /></label>
-          <label><span data-i18n="tags">Tags</span><input id="editTags" placeholder="Italian, vegetarian, quick…" data-i18n-placeholder="tagsPlaceholder" /></label>
+        <div class="taxonomy-editor">
+          <label><span data-i18n="recipeType">Type</span><input id="editType" placeholder="Pasta, Soup, Dessert…" data-i18n-placeholder="typePlaceholder" /></label>
+          <label><span data-i18n="cuisine">Cuisine</span><input id="editCuisine" placeholder="Italian, Finnish…" data-i18n-placeholder="cuisinePlaceholder" /></label>
+          <label><span data-i18n="dietary">Dietary</span><input id="editDietary" placeholder="Vegetarian, Vegan…" data-i18n-placeholder="dietaryPlaceholder" /></label>
+          <label><span data-i18n="traits">Traits</span><input id="editTraits" placeholder="Quick, Easy…" data-i18n-placeholder="traitsPlaceholder" /></label>
         </div>
-        <label><span data-i18n="ingredients">Ingredients</span><textarea id="editIngredients" rows="10" placeholder="One ingredient per line" data-i18n-placeholder="ingredientsPlaceholder"></textarea></label>
-        <label><span data-i18n="steps">Steps</span><textarea id="editSteps" rows="12" placeholder="One step per line" data-i18n-placeholder="stepsPlaceholder"></textarea></label>
-        <label><span data-i18n="notes">Notes / extra information</span><textarea id="editNotes" rows="6" data-i18n-placeholder="notesPlaceholder" placeholder="Tips, substitutions, storage, or anything that did not fit elsewhere"></textarea></label>
+        <section class="structured-editor-section">
+          <div class="structured-editor-heading"><span data-i18n="ingredients">Ingredients</span><div><button type="button" id="addIngredientGroupBtn" class="text-btn" data-i18n="addSection">+ Section</button><button type="button" id="addIngredientRowBtn" class="text-btn" data-i18n="addIngredient">+ Ingredient</button></div></div>
+          <div id="ingredientEditorRows" class="ingredient-editor-rows"></div>
+        </section>
+        <section class="structured-editor-section">
+          <div class="structured-editor-heading"><span data-i18n="steps">Steps</span><button type="button" id="addStepRowBtn" class="text-btn" data-i18n="addStep">+ Step</button></div>
+          <div id="stepEditorRows" class="step-editor-rows"></div>
+        </section>
+        <label><span data-i18n="equipment">Equipment</span><textarea id="editEquipment" rows="3" placeholder="One item per line" data-i18n-placeholder="equipmentPlaceholder"></textarea></label>
+        <label><span data-i18n="notes">Notes / tips</span><textarea id="editNotes" rows="5" data-i18n-placeholder="notesPlaceholder" placeholder="Tips, substitutions, storage…"></textarea></label>
+        <label><span data-i18n="nutrition">Nutrition</span><textarea id="editNutrition" rows="4" placeholder="Nutrition information" data-i18n-placeholder="nutritionPlaceholder"></textarea></label>
         <label><span data-i18n="sourceUrl">Source URL</span><input id="editSourceUrl" type="url" placeholder="https://…" /></label>
         <div class="editor-danger">
           <button type="button" id="deleteRecipeBtn" class="danger hidden" data-i18n="deleteRecipe">Delete recipe</button>
@@ -360,6 +366,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=15"></script>
+  <script type="module" src="app.js?v=16"></script>
 </body>
 </html>
