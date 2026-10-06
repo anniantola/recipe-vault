@@ -1,0 +1,228 @@
+import { durationMinutes, normalizeUrl } from './recipe-core.js?v=17';
+
+const clean = (value='') => String(value ?? '')
+  .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g,' ')
+  .replace(/[\t\f\v]+/g,' ')
+  .replace(/ {2,}/g,' ')
+  .replace(/\s+([,.;:!?%])/g,'$1')
+  .replace(/\(\s+/g,'(')
+  .replace(/\s+\)/g,')')
+  .trim();
+
+const stripMarkup = (value='') => clean(String(value||'')
+  .replace(/<[^>]+>/g,' ')
+  .replace(/\[([^\]]+)\]\([^\)]+\)/g,'$1')
+  .replace(/[*_`>#]+/g,' '));
+
+export function createRecipeDraft(overrides={}) {
+  const now=Date.now();
+  return {
+    id:'', title:'', type:'Recipe', category:'Recipe', cuisine:[], dietary:[], traits:[], tags:[],
+    description:'', servings:'', prepTime:'', cookTime:'', restTime:'', totalTime:'', temperature:'', author:'',
+    ingredients:[], steps:[], equipment:[], notes:'', nutrition:'', favorite:false,
+    source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:''},
+    imageUrl:'', mediaId:'', mediaType:'', thumbnailId:'', coverMediaId:'', coverPreset:'recipe',
+    createdAt:now, updatedAt:now,
+    ...overrides,
+    source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:'',...(overrides.source||{})}
+  };
+}
+
+export function normalizeRecipeCategory(value='') {
+  const s=clean(Array.isArray(value)?value[0]:value).toLowerCase();
+  if(!s)return '';
+  if(/dessert|sweet|cake|cookie|pudding|dolce|jälkiruoka/.test(s))return 'Dessert';
+  if(/pasta|spaghetti|noodle/.test(s))return 'Pasta';
+  if(/soup|stew|zuppa|keitto/.test(s))return 'Soup';
+  if(/salad|insalata|salaatti/.test(s))return 'Salad';
+  if(/breakfast|brunch|aamiainen|colazione/.test(s))return 'Breakfast';
+  if(/drink|beverage|cocktail|smoothie|juoma|bevanda/.test(s))return 'Drink';
+  if(/sauce|dip|dressing|kastike|salsa/.test(s))return 'Sauce';
+  if(/bread|baking|baked|bakery|pane|leipä/.test(s))return 'Baking';
+  if(/main|main course|dinner|lunch|entrée|entree|pääruoka|secondo/.test(s))return 'Main';
+  return '';
+}
+
+function asList(v){return Array.isArray(v)?v:(v==null?[]:[v]);}
+function authorName(author){
+  if(!author)return '';
+  if(Array.isArray(author))return author.map(authorName).filter(Boolean).join(', ');
+  return clean(typeof author==='string'?author:(author.name||''));
+}
+function firstImage(image){
+  const list=asList(image);
+  for(const item of list){
+    if(typeof item==='string' && /^https?:/i.test(item))return item;
+    if(item&&typeof item==='object'){
+      const u=item.url||item.contentUrl||item['@id'];
+      if(typeof u==='string'&&/^https?:/i.test(u))return u;
+    }
+  }
+  return '';
+}
+function isoDurationToText(value=''){
+  const s=String(value||'').trim();
+  const m=s.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i);
+  if(!m)return clean(s);
+  const d=Number(m[1]||0),h=Number(m[2]||0),min=Number(m[3]||0),sec=Number(m[4]||0);
+  const total=Math.round(d*1440+h*60+min+(sec>=30?.5:0));
+  return minutesToText(total);
+}
+export function minutesToText(total){
+  total=Math.round(Number(total)||0);
+  if(total<=0)return '';
+  const h=Math.floor(total/60),m=total%60;
+  if(h&&m)return `${h} hr${h===1?'':'s'} ${m} min${m===1?'':'s'}`;
+  if(h)return `${h} hr${h===1?'':'s'}`;
+  return `${m} min${m===1?'':'s'}`;
+}
+
+function instructionTexts(value){
+  const out=[];
+  const visit=v=>{
+    if(!v)return;
+    if(Array.isArray(v)){v.forEach(visit);return;}
+    if(typeof v==='string'){const x=stripMarkup(v);if(x)out.push(x);return;}
+    if(typeof v!=='object')return;
+    const type=String(v['@type']||'').toLowerCase();
+    if(type.includes('howtosection')){visit(v.itemListElement||v.steps);return;}
+    const x=stripMarkup(v.text||v.name||'');
+    if(x)out.push(x); else visit(v.itemListElement||v.steps);
+  };
+  visit(value);
+  return [...new Set(out)].filter(Boolean);
+}
+
+export function findRecipeSchema(value){
+  let best=null;
+  const visit=v=>{
+    if(!v||best)return;
+    if(Array.isArray(v)){for(const x of v){visit(x);if(best)break;}return;}
+    if(typeof v!=='object')return;
+    const types=asList(v['@type']);
+    if(types.some(x=>String(x||'').toLowerCase()==='recipe')){best=v;return;}
+    if(v['@graph'])visit(v['@graph']);
+    for(const [k,x] of Object.entries(v))if(k!=='@graph'&&typeof x==='object'){visit(x);if(best)break;}
+  };
+  visit(value);
+  return best;
+}
+
+export function recipeSchemaFromHtml(html=''){
+  const doc=new DOMParser().parseFromString(String(html),'text/html');
+  for(const el of doc.querySelectorAll('script[type="application/ld+json"]')){
+    try{const found=findRecipeSchema(JSON.parse(el.textContent||''));if(found)return found;}catch{}
+  }
+  return null;
+}
+
+export function htmlToRecipeText(html=''){
+  const doc=new DOMParser().parseFromString(String(html),'text/html');
+  doc.querySelectorAll('script,style,noscript,nav,footer,header,form,button,svg,aside').forEach(el=>el.remove());
+  const blocks=[...doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,li,p')];
+  const lines=[],seen=new Set();
+  for(const el of blocks){
+    const text=clean(el.textContent||'');
+    if(!text||text.length>1000)continue;
+    const key=text.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    if(!key||seen.has(key))continue;seen.add(key);
+    if(/^H[1-6]$/.test(el.tagName))lines.push(`${'#'.repeat(Number(el.tagName.slice(1)))} ${text}`);
+    else if(el.tagName==='LI')lines.push(`• ${text}`);
+    else lines.push(text);
+  }
+  return lines.join('\n');
+}
+
+function nutritionText(nutrition){
+  if(!nutrition||typeof nutrition!=='object')return '';
+  return Object.entries(nutrition)
+    .filter(([k,v])=>!k.startsWith('@')&&v!=null&&String(v).trim())
+    .map(([k,v])=>`${k.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase())}: ${clean(v)}`)
+    .join(' | ');
+}
+
+export function jsonLdToRecipeDraft(schema, source={}){
+  if(!schema)return null;
+  const ingredientLines=asList(schema.recipeIngredient).map(x=>stripMarkup(String(x||''))).filter(Boolean);
+  const steps=instructionTexts(schema.recipeInstructions);
+  if(ingredientLines.length<2||steps.length<1)return null;
+  const prepTime=isoDurationToText(schema.prepTime||'');
+  const cookTime=isoDurationToText(schema.cookTime||'');
+  const totalTime=isoDurationToText(schema.totalTime||'');
+  let restTime='';
+  const total=durationMinutes(totalTime),prep=durationMinutes(prepTime),cook=durationMinutes(cookTime);
+  if(Number.isFinite(total)&&Number.isFinite(prep)&&Number.isFinite(cook)&&total>prep+cook)restTime=minutesToText(total-prep-cook);
+  const yieldValue=Array.isArray(schema.recipeYield)?schema.recipeYield.find(Boolean):schema.recipeYield;
+  const cuisine=asList(schema.recipeCuisine).map(clean).filter(Boolean);
+  const keywordHints=String(schema.keywords||'').split(/[,;]+/).map(clean).filter(Boolean);
+  const typeHint=normalizeRecipeCategory(schema.recipeCategory);
+  return createRecipeDraft({
+    title:clean(schema.name||source.title||'Untitled recipe'),
+    type:typeHint||'Recipe',category:typeHint||'Recipe',
+    cuisine, tags:[...cuisine,...keywordHints],
+    description:stripMarkup(schema.description||''),
+    servings:clean(yieldValue||''),prepTime,cookTime,restTime,totalTime,
+    author:authorName(schema.author),
+    ingredients:ingredientLines.map(raw=>({kind:'raw',raw})),
+    steps,
+    equipment:asList(schema.tool).map(x=>clean(typeof x==='string'?x:(x?.name||''))).filter(Boolean),
+    nutrition:nutritionText(schema.nutrition),
+    source:{type:'website',url:source.url||'',label:source.label||'',filename:'',sourceKey:source.sourceKey||`url:${normalizeUrl(source.url||'')}`,extractor:source.extractor||'json-ld'},
+    imageUrl:source.imageUrl||firstImage(schema.image)||''
+  });
+}
+
+export function extractOvenTemperature(text=''){
+  const s=String(text||'').replace(/º/g,'°');
+  const hits=[];
+  for(const m of s.matchAll(/\b(\d{2,3})\s*°?\s*([CF])\b/ig))hits.push(`${m[1]}°${m[2].toUpperCase()}`);
+  for(const m of s.matchAll(/\b(\d{2,3})\s*(?:degrees?\s*)?(Celsius|Fahrenheit)\b/ig))hits.push(`${m[1]}°${m[2][0].toUpperCase()}`);
+  const unique=[...new Set(hits)];
+  if(!unique.length)return '';
+  const c=unique.find(x=>/°C$/.test(x)),f=unique.find(x=>/°F$/.test(x));
+  return c&&f?`${c} / ${f}`:unique.slice(0,2).join(' / ');
+}
+
+function inferCookTimeFromSteps(steps=[]){
+  const joined=steps.join(' ');
+  const patterns=[
+    /\b(?:bake|cook|roast|grill|paista|kypsennä|cuoci|cuocere|inforna)\b[^.!?]{0,90}?\bfor\s+(\d+(?:\s*[-–]\s*\d+)?)\s*(minutes?|mins?|min|hours?|hrs?|h)\b/i,
+    /\b(?:bake|cook|roast|grill|paista|kypsennä|cuoci|cuocere|inforna)\b[^.!?]{0,90}?(\d+(?:\s*[-–]\s*\d+)?)\s*(minutes?|mins?|min|hours?|hrs?|h)\b/i
+  ];
+  for(const re of patterns){
+    const m=joined.match(re);if(!m)continue;
+    const unit=/h|hour|hr/i.test(m[2])?'hrs':'mins';
+    return `${m[1].replace(/\s*[-–]\s*/,'–')} ${unit}`;
+  }
+  return '';
+}
+
+function inferServings(text=''){
+  const patterns=[
+    /\b(?:servings?|yield)\s*[:\-]?\s*([^\n|]{1,45})/i,
+    /\bserves\s+(\d+(?:\s*[-–]\s*\d+)?(?:\s+[a-z][a-z\s-]{0,30})?)/i,
+    /\b(\d+(?:\s*[-–]\s*\d+)?)\s+(?:annosta|portion(?:s|i)?|porzioni?)\b/i
+  ];
+  for(const re of patterns){const m=String(text||'').match(re);if(m)return clean(m[1]);}
+  return '';
+}
+
+export function repairRecipeDraft(recipe={}){
+  const r=recipe;
+  const repairs=[];
+  const combined=[...(r.steps||[]),r.notes||'',r.description||''].join('\n');
+  if(!r.temperature){const x=extractOvenTemperature(combined);if(x){r.temperature=x;repairs.push({field:'temperature',value:x,reason:'instructions'});}}
+  if(!r.cookTime){const x=inferCookTimeFromSteps(r.steps||[]);if(x){r.cookTime=x;repairs.push({field:'cookTime',value:x,reason:'instructions'});}}
+  if(!r.servings){const x=inferServings(`${r.description||''}\n${r.notes||''}`);if(x){r.servings=x;repairs.push({field:'servings',value:x,reason:'recipe text'});}}
+  if(!r.totalTime){
+    const parts=[durationMinutes(r.prepTime),durationMinutes(r.cookTime),durationMinutes(r.restTime)];
+    const known=parts.filter(Number.isFinite);
+    // Do not pretend one isolated component is the full recipe duration.
+    if(known.length>=2){
+      const total=known.reduce((a,b)=>a+b,0);
+      if(total>0){const x=minutesToText(total);r.totalTime=x;repairs.push({field:'totalTime',value:x,reason:'component times'});}
+    }
+  }
+  r.importRepairs=repairs;
+  return r;
+}

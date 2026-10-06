@@ -1,36 +1,31 @@
-# Recipe Vault v16
+# Recipe Vault v17
 
-Local-first recipe library, pantry matcher and shopping list for GitHub Pages.
+A local-first recipe PWA for GitHub Pages. Keep your existing `.github/workflows/deploy.yml`; it is not included here.
 
-## v16 overhaul
+## v17 reliability pass
 
-- Normalized recipe model: description, yield, timings, oven temperature, ingredients, steps, equipment, notes/tips, nutrition and source are separate fields.
-- Explicit taxonomy: recipe type, cuisine, dietary labels and traits no longer compete for one category field.
-- Source-specific import pipeline: JSON-LD/recipe-card websites, PDF text + OCR fallback, image OCR, video-frame OCR and pasted text all converge to one RecipeDraft format.
-- Import validation: every imported draft gets a quality score and specific review warnings before saving.
-- PDF text-quality detection: broken glyph text triggers rendered-page OCR instead of being trusted.
-- Structured mobile editor: ingredient amount/unit/name/note/optional fields, ingredient sections, reorderable steps and separate equipment/nutrition fields.
-- Duplicate detection by normalized source URL or file SHA-256.
-- Pantry matching weights main ingredients more heavily than staples and distinguishes "ready", "missing only staples" and "missing main ingredients".
-- Built-in cover presets by recipe type; no embedded SVG needs to be saved in every recipe.
-- Compact JSON backup contains recipes/settings only. Full ZIP backup stores `recipes.json` and binary media separately under `/media`.
-- Existing v1-v15 recipes and legacy JSON backups are migrated on load/import.
+- Split persistent storage into `storage.js` and structured import/repair logic into `recipe-import.js`.
+- Added one default `RecipeDraft` shape used by manual recipes and structured website imports.
+- Website JSON-LD now maps directly into that draft instead of being flattened through the generic text parser first.
+- Added conservative automatic repair for missing oven temperature, cook/bake time, servings, and total time. Explicit source/user values are never overwritten.
+- Import review shows which fields were recovered automatically.
+- Pasta shapes classify as Pasta without automatically implying Italian cuisine; Italian cuisine needs an actual Italian signal or source metadata.
+- PDF corruption detection/OCR fallback, compact JSON/full ZIP backups, structured editor, pantry-first matching, duplicate detection and cover presets from v16 remain.
+- Schema/cache version: 17.
 
 ## Files
 
-All app files remain in the repository root:
+Upload all files in this ZIP to the repository root. The app uses:
 
 - `index.html`
 - `app.js`
 - `recipe-core.js`
+- `recipe-import.js`
+- `storage.js`
 - `styles.css`
 - `manifest.webmanifest`
 - `sw.js`
 - `icon-192.png`
 - `icon-512.png`
 
-Keep the GitHub Pages deployment workflow (`.github/workflows/deploy.yml`) separate, as in the other apps.
-
-## Deployment
-
-Upload/replace the root files, commit to `main`, and keep GitHub Pages configured to **GitHub Actions**. The existing deployment workflow does not need to change.
+The deployment workflow is intentionally not included.

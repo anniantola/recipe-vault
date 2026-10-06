@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 const TYPE_RULES = [
   ['Dessert', /\b(cake|cheesecake|cookie|cookies|brownie|dessert|pudding|tart|ice cream|kakku|jälkiruoka|dolce|torta|biscotti)\b/i],
@@ -12,7 +12,7 @@ const TYPE_RULES = [
   ['Main', /\b(chicken|beef|pork|salmon|tofu|rice|curry|risotto|pizza|kana|nauta|possu|lohi|riisi|pollo|manzo|maiale|salmone|riso)\b/i]
 ];
 const CUISINE_RULES = [
-  ['Italian', /\b(italian|italiano|italiana|parmigiano|pasta|spaghetti|penne|tagliatelle|linguine|macaroni|maccheroni|fusilli|rigatoni|farfalle|orecchiette|lasagna|lasagne|risotto|mozzarella|basilico|pomodoro|gnocchi|pizza|panettone|focaccia)\b/i],
+  ['Italian', /\b(italian|italiano|italiana|parmigiano|mozzarella|basilico|pomodoro|risotto|gnocchi|pizza|panettone|focaccia|carbonara|amatriciana|bolognese|pesto genovese)\b/i],
   ['Finnish', /\b(finnish|suomalainen|karjalan|lohikeitto|rieska|korvapuusti)\b/i],
   ['Mexican', /\b(mexican|tacos?|tortilla|guacamole|quesadilla)\b/i],
   ['Indian', /\b(indian|garam masala|tikka|dal|dahl|naan)\b/i],
