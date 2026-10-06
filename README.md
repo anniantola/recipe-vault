@@ -14,3 +14,7 @@ Local-first recipe library PWA for GitHub Pages.
 
 ## Deployment
 Upload the app files to the repository root. Add the deployment workflow separately as `.github/workflows/deploy.yml`, then set GitHub Pages Source to **GitHub Actions**.
+
+
+## Measurements
+Recipe amounts can be displayed in Metric or US customary units. Conversions are display-only; the original imported quantities remain stored unchanged.

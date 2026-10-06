@@ -1,6 +1,6 @@
-const CACHE = 'recipe-vault-v5';
+const CACHE = 'recipe-vault-v6';
 const APP_SHELL = [
-  './', './index.html', './styles.css?v=5', './app.js?v=5', './manifest.webmanifest?v=5',
+  './', './index.html', './styles.css?v=6', './app.js?v=6', './manifest.webmanifest?v=6',
   './icon-192.png', './icon-512.png'
 ];
 const DB_NAME = 'recipe-vault-db';

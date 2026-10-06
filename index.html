@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=5" />
+  <link rel="manifest" href="manifest.webmanifest?v=6" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <header class="app-header">
@@ -193,6 +193,21 @@
       </div>
 
       <div class="settings-group">
+        <div class="eyebrow" data-i18n="measurementsEyebrow">MEASUREMENTS</div>
+        <h2 data-i18n="measurements">Measurements</h2>
+        <label class="setting-line no-border">
+          <span>
+            <strong data-i18n="measurementSystem">Measurement system</strong>
+            <small data-i18n="measurementHelp">Switch recipe amounts between metric and US customary. The original imported quantities stay stored unchanged.</small>
+          </span>
+          <div id="measurementSwitch" class="language-switch" role="group" aria-label="Measurement system">
+            <button type="button" class="language-choice" data-measurement="metric" data-i18n="metric">Metric</button>
+            <button type="button" class="language-choice" data-measurement="us" data-i18n="usCustomary">US</button>
+          </div>
+        </label>
+      </div>
+
+      <div class="settings-group">
         <div class="eyebrow" data-i18n="appearance">APPEARANCE</div>
         <h2 data-i18n="theme">Theme</h2>
         <label class="setting-line">
@@ -316,6 +331,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

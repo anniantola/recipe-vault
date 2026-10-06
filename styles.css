@@ -256,3 +256,9 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .language-choice{min-width:38px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font-weight:700;font-size:12px}
 .language-choice.active{background:var(--text);color:var(--bg);border-color:var(--text)}
 @media(max-width:430px){.setting-line.no-border{align-items:flex-start}.language-switch{margin-top:1px}}
+
+
+/* Measurement system controls */
+.detail-measurements{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:13px 0 4px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.detail-measurements>span{font-size:12px;font-weight:800;color:var(--muted)}
+@media(max-width:430px){.detail-measurements{align-items:center}.detail-measurements .language-choice{min-width:58px}}
