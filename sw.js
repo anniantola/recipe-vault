@@ -1,6 +1,6 @@
-const CACHE = 'recipe-vault-v30';
+const CACHE = 'recipe-vault-v31';
 const APP_SHELL = [
-  './', './index.html', './styles.css?v=30', './recipe-core.js?v=30', './recipe-import.js?v=30', './storage.js?v=30', './translations.js?v=30', './app.js?v=30', './manifest.webmanifest?v=30',
+  './', './index.html', './styles.css?v=31', './recipe-core.js?v=31', './recipe-import.js?v=31', './storage.js?v=31', './translations.js?v=31', './app.js?v=31', './manifest.webmanifest?v=31',
   './icon-192.png', './icon-512.png'
 ];
 const DB_NAME = 'recipe-vault-db';
@@ -32,7 +32,8 @@ async function saveShared(payload) {
 }
 
 self.addEventListener('install', event => {
-  self.skipWaiting();
+  // Do not call skipWaiting here. A new version waits until existing app windows
+  // are closed, preventing deployments from interrupting an edit in progress.
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)));
 });
 

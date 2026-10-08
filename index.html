@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=30" />
+  <link rel="manifest" href="manifest.webmanifest?v=31" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <style>
@@ -28,7 +28,7 @@
       } catch (_) {}
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=30" />
+  <link rel="stylesheet" href="styles.css?v=31" />
 </head>
 <body>
   <header class="app-header">
@@ -259,6 +259,13 @@
       </div>
 
       <div class="settings-group">
+        <div class="eyebrow" data-i18n="tagsEyebrow">TAGS</div>
+        <h2 data-i18n="manageTags">Manage custom tags</h2>
+        <p class="muted" data-i18n="manageTagsHelp">Custom tags you add in recipe editing stay available for reuse. Rename or delete them here; changes apply to every recipe using that tag.</p>
+        <div id="customTagManager" class="custom-tag-manager"></div>
+      </div>
+
+      <div class="settings-group">
         <div class="eyebrow" data-i18n="data">DATA</div>
         <h2 data-i18n="backupRestore">Backup & restore</h2>
         <p class="muted" data-i18n="backupHelp">Your data is stored locally on this device. Compact JSON keeps recipes and settings small; Full ZIP also includes stored photos, PDFs and videos.</p>
@@ -418,6 +425,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=30"></script>
+  <script type="module" src="app.js?v=31"></script>
 </body>
 </html>
