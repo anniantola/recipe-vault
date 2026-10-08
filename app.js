@@ -1,8 +1,8 @@
-import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=23';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=23';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=23';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=23';
-const APP_VERSION = 23;
+import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=24';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=24';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=24';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=24';
+const APP_VERSION = 24;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -135,7 +135,7 @@ let recipeRenderGeneration = 0;
 const I18N = {
   en: {
     privateLibrary:'PRIVATE RECIPE LIBRARY', recipes:'Recipes', cook:'Cook', import:'Import', shopping:'Shopping', settings:'Settings',
-    searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newestFirst:'Newest added first', newest:'Newest', az:'A–Z', favorites:'Favorites', changePhoto:'Change photo', cropPhoto:'Crop photo', cropHelp:'Drag the image to position it and use the slider to zoom.', cancel:'Cancel', saveCrop:'Use crop', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
+    searchRecipes:'Search recipes, ingredients, tags…', yourCollection:'YOUR COLLECTION', recipeLibrary:'Recipe library', newestFirst:'Newest added first', newest:'Newest', az:'A–Z', favorites:'Favorites', rating:'Rating', unrated:'Unrated', changePhoto:'Change photo', cropPhoto:'Crop photo', cropHelp:'Drag the image to position it and use the slider to zoom.', cancel:'Cancel', saveCrop:'Use crop', noRecipesYet:'No recipes yet', noRecipesText:'Import a website, PDF, photo, downloaded Reel/video or plain text. You can also add a recipe manually.', importFirst:'Import your first recipe',
     whatCanIMake:'WHAT CAN I MAKE?', matchWhatYouHave:'Match what you have', matcherHelp:'Your Pantry is used automatically when ranking recipes. Add one-off ingredients below without saving them.', availablePlaceholder:'e.g. one-off ingredient', add:'Add', includePantry:'Include pantry', includePantryHelp:'Use ingredients you have saved at home.', temporaryIngredients:'Temporary ingredients', temporaryIngredientsHelp:'Add something you have right now without saving it to your pantry.', addFewIngredients:'Add a few ingredients', matchEmptyText:'Your recipes will be ranked by how many required ingredients you already have.',
     text:'Text', website:'Website', file:'File', manual:'Manual', pasteAnyRecipe:'PASTE ANY RECIPE', textImport:'Text import', pasteRecipePlaceholder:'Paste a recipe, caption, message or notes here…', parseRecipe:'Parse recipe', fromWeb:'FROM THE WEB', websiteSocial:'Website or social link', websiteHelp:'Ordinary recipe pages are fetched as readable text. For Instagram, the most reliable route is to download the Reel and import/share the video file.', importLink:'Import from link', websitePrivacy:'Website import uses a CORS relay to read public recipe pages and may use Jina Reader as a fallback. The URL is sent to those external services for extraction.', photoPdfVideo:'PHOTO · PDF · VIDEO', importFile:'Import a file', chooseFiles:'Choose files', fileTypes:'Images, PDFs and downloaded recipe videos/Reels', takePhoto:'Take photo', keepOriginal:'Keep original source', keepOriginalHelp:'Store the imported image, PDF or video with the recipe.', ocrPrivacy:'OCR reads English, Finnish and Italian. It may need internet the first time; recipe browsing and shopping remain offline.', startScratch:'START FROM SCRATCH', manualRecipe:'Manual recipe', createBlank:'Create blank recipe',
     shoppingList:'SHOPPING LIST', addAnything:'Add anything…', clearChecked:'Clear checked', listEmpty:'Your list is empty', listEmptyText:'Add ingredients from any recipe, or type unrelated shopping items above.', atHome:'AT HOME', pantry:'Pantry', pantryHelp:'Pantry ingredients are used automatically when Recipe Vault ranks what you can cook and are excluded from missing ingredients added to Shopping.', pantryPlaceholder:'Add pantry ingredient…', nothingSaved:'Nothing saved yet.',
@@ -146,7 +146,7 @@ const I18N = {
   },
   fi: {
     privateLibrary:'OMA RESEPTIKIRJASTO', recipes:'Reseptit', cook:'Kokkaa', import:'Tuo', shopping:'Ostokset', settings:'Asetukset',
-    searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newestFirst:'Uusimmat lisäykset ensin', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', changePhoto:'Vaihda kuva', cropPhoto:'Rajaa kuva', cropHelp:'Siirrä kuvaa vetämällä ja zoomaa liukusäätimellä.', cancel:'Peruuta', saveCrop:'Käytä rajausta', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
+    searchRecipes:'Hae reseptejä, aineksia tai tageja…', yourCollection:'OMA KOKOELMA', recipeLibrary:'Reseptikirjasto', newestFirst:'Uusimmat lisäykset ensin', newest:'Uusimmat', az:'A–Ö', favorites:'Suosikit', rating:'Arvosana', unrated:'Ei arvosanaa', changePhoto:'Vaihda kuva', cropPhoto:'Rajaa kuva', cropHelp:'Siirrä kuvaa vetämällä ja zoomaa liukusäätimellä.', cancel:'Peruuta', saveCrop:'Käytä rajausta', noRecipesYet:'Ei vielä reseptejä', noRecipesText:'Tuo resepti verkkosivulta, PDF:stä, kuvasta, ladatusta Reel-videosta tai tekstistä. Voit myös lisätä reseptin käsin.', importFirst:'Tuo ensimmäinen resepti',
     whatCanIMake:'MITÄ VOIN TEHDÄ?', matchWhatYouHave:'Etsi aineksillasi', matcherHelp:'Kotivarastoa käytetään automaattisesti reseptien järjestämiseen. Lisää alle vain tilapäiset ainekset, joita et halua tallentaa kotivarastoon.', availablePlaceholder:'esim. tilapäinen aines', add:'Lisää', includePantry:'Sisällytä kotivarasto', includePantryHelp:'Käytä myös kotiin tallennettuja aineksia.', temporaryIngredients:'Tilapäiset ainekset', temporaryIngredientsHelp:'Lisää tähän jotain, mitä sinulla on juuri nyt mutta jota et halua tallentaa kotivarastoon.', addFewIngredients:'Lisää muutama aines', matchEmptyText:'Reseptit järjestetään sen mukaan, kuinka moni tarvittava aines sinulla jo on.',
     text:'Teksti', website:'Verkkosivu', file:'Tiedosto', manual:'Käsin', pasteAnyRecipe:'LIITÄ RESEPTI', textImport:'Tuo tekstistä', pasteRecipePlaceholder:'Liitä resepti, kuvateksti, viesti tai muistiinpanot tähän…', parseRecipe:'Jäsennä resepti', fromWeb:'VERKOSTA', websiteSocial:'Verkkosivu tai some-linkki', websiteHelp:'Tavalliset reseptisivut luetaan tekstiksi. Instagramissa luotettavin tapa on ladata Reel ja tuoda/jakaa videotiedosto sovellukseen.', importLink:'Tuo linkistä', websitePrivacy:'Verkkosivun tuonti käyttää CORS-välityspalvelua julkisten reseptisivujen lukemiseen ja voi käyttää Jina Readeria varavaihtoehtona. URL lähetetään näihin ulkoisiin palveluihin poimintaa varten.', photoPdfVideo:'KUVA · PDF · VIDEO', importFile:'Tuo tiedosto', chooseFiles:'Valitse tiedostot', fileTypes:'Kuvat, PDF:t ja ladatut reseptivideot/Reelsit', takePhoto:'Ota kuva', keepOriginal:'Säilytä alkuperäinen', keepOriginalHelp:'Tallenna tuotu kuva, PDF tai video reseptin yhteyteen.', ocrPrivacy:'OCR lukee englantia, suomea ja italiaa. Se voi tarvita internetiä ensimmäisellä kerralla; reseptien selaus ja ostoslista toimivat offline.', startScratch:'ALOITA TYHJÄSTÄ', manualRecipe:'Resepti käsin', createBlank:'Luo tyhjä resepti',
     shoppingList:'OSTOSLISTA', addAnything:'Lisää mitä tahansa…', clearChecked:'Poista rastitetut', listEmpty:'Ostoslista on tyhjä', listEmptyText:'Lisää aineksia resepteistä tai kirjoita listaan muita ostoksia.', atHome:'KOTONA', pantry:'Kotivarasto', pantryHelp:'Kotivaraston aineksia käytetään automaattisesti sen arviointiin, mitä voit valmistaa, ja ne jätetään pois Ostoksiin lisättävistä puuttuvista aineksista.', pantryPlaceholder:'Lisää aines kotivarastoon…', nothingSaved:'Ei vielä tallennettuja aineksia.',
@@ -157,7 +157,7 @@ const I18N = {
   },
   it: {
     privateLibrary:'RACCOLTA RICETTE PRIVATA', recipes:'Ricette', cook:'Cucina', import:'Importa', shopping:'Spesa', settings:'Impostazioni',
-    searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newestFirst:'Aggiunte più recenti prima', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', changePhoto:'Cambia foto', cropPhoto:'Ritaglia foto', cropHelp:'Trascina l’immagine per posizionarla e usa il cursore per lo zoom.', cancel:'Annulla', saveCrop:'Usa ritaglio', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
+    searchRecipes:'Cerca ricette, ingredienti o tag…', yourCollection:'LA TUA RACCOLTA', recipeLibrary:'Raccolta ricette', newestFirst:'Aggiunte più recenti prima', newest:'Più recenti', az:'A–Z', favorites:'Preferiti', rating:'Valutazione', unrated:'Senza valutazione', changePhoto:'Cambia foto', cropPhoto:'Ritaglia foto', cropHelp:'Trascina l’immagine per posizionarla e usa il cursore per lo zoom.', cancel:'Annulla', saveCrop:'Usa ritaglio', noRecipesYet:'Nessuna ricetta', noRecipesText:'Importa da un sito, PDF, foto, Reel/video scaricato o testo. Puoi anche aggiungere una ricetta manualmente.', importFirst:'Importa la prima ricetta',
     whatCanIMake:'COSA POSSO CUCINARE?', matchWhatYouHave:'Abbina ciò che hai', matcherHelp:'La Dispensa viene usata automaticamente per ordinare le ricette. Aggiungi qui sotto solo ingredienti temporanei che non vuoi salvare in dispensa.', availablePlaceholder:'es. pomodoro, pasta, parmigiano', add:'Aggiungi', includePantry:'Includi dispensa', includePantryHelp:'Usa anche gli ingredienti salvati a casa.', temporaryIngredients:'Ingredienti temporanei', temporaryIngredientsHelp:'Aggiungi qualcosa che hai adesso senza salvarlo nella dispensa.', addFewIngredients:'Aggiungi alcuni ingredienti', matchEmptyText:'Le ricette saranno ordinate in base a quanti ingredienti necessari hai già.',
     text:'Testo', website:'Sito web', file:'File', manual:'Manuale', pasteAnyRecipe:'INCOLLA UNA RICETTA', textImport:'Importa testo', pasteRecipePlaceholder:'Incolla qui una ricetta, didascalia, messaggio o nota…', parseRecipe:'Analizza ricetta', fromWeb:'DAL WEB', websiteSocial:'Sito web o link social', websiteHelp:'Le normali pagine di ricette vengono convertite in testo leggibile. Per Instagram, il metodo più affidabile è scaricare il Reel e importare/condividere il video.', importLink:'Importa dal link', websitePrivacy:'L’importazione web usa un relay CORS per leggere le pagine pubbliche e può usare Jina Reader come fallback. L’URL viene inviato a questi servizi esterni per l’estrazione.', photoPdfVideo:'FOTO · PDF · VIDEO', importFile:'Importa un file', chooseFiles:'Scegli file', fileTypes:'Immagini, PDF e video/Reel di ricette scaricati', takePhoto:'Scatta foto', keepOriginal:'Conserva fonte originale', keepOriginalHelp:'Salva l’immagine, PDF o video importato con la ricetta.', ocrPrivacy:'L’OCR legge inglese, finlandese e italiano. Potrebbe richiedere internet al primo utilizzo; ricette e lista della spesa restano disponibili offline.', startScratch:'PARTI DA ZERO', manualRecipe:'Ricetta manuale', createBlank:'Crea ricetta vuota',
     shoppingList:'LISTA DELLA SPESA', addAnything:'Aggiungi qualsiasi cosa…', clearChecked:'Rimuovi selezionati', listEmpty:'La lista è vuota', listEmptyText:'Aggiungi ingredienti da una ricetta oppure altri articoli manualmente.', atHome:'A CASA', pantry:'Dispensa', pantryHelp:'Gli ingredienti della dispensa vengono usati automaticamente per valutare cosa puoi cucinare e vengono esclusi dagli ingredienti mancanti aggiunti alla Spesa.', pantryPlaceholder:'Aggiungi ingrediente in dispensa…', nothingSaved:'Ancora nessun ingrediente salvato.',
@@ -172,6 +172,20 @@ function t(key, vars={}) {
   let out=(I18N[lang]&&I18N[lang][key]) || I18N.en[key] || key;
   for(const [k,v] of Object.entries(vars)) out=out.replaceAll(`{${k}}`,String(v));
   return out;
+}
+
+function normalizeRating(value){const n=Number(value);return Number.isFinite(n)&&n>=1?Math.min(5,Math.max(1,Math.round(n))):0;}
+function ratingStars(value){const n=normalizeRating(value);return `${'★'.repeat(n)}${'☆'.repeat(5-n)}`;}
+function ratingButtonsHtml(value,scope='rating'){const n=normalizeRating(value);return [1,2,3,4,5].map(v=>`<button type="button" class="rating-star ${v<=n?'active':''}" data-rating-value="${v}" aria-checked="${v===n?'true':'false'}" role="radio" title="${v}/5">★</button>`).join('');}
+function renderEditorRating(value){
+  const root=$('#editRatingStars');if(!root)return;
+  const n=normalizeRating(value);root.innerHTML=ratingButtonsHtml(n,'editor');root.setAttribute('aria-label',t('rating'));
+  $('#clearEditRatingBtn')?.classList.toggle('hidden',!n);
+}
+async function setRecipeRating(id,value){
+  const r=recipes.find(x=>x.id===id);if(!r)return;
+  r.rating=normalizeRating(value);r.updatedAt=Date.now();await idbPut('recipes',r);
+  await renderRecipes();
 }
 
 function currentRecipeView(recipe,lang=state.language||'en') { return localizedRecipe(recipe,lang); }
@@ -428,6 +442,8 @@ function cleanRecipeRecord(recipe) {
   recipe.description=cleanMultilineSpacing(recipe.description||'');
   recipe.nutrition=sanitizeNutritionText(cleanMultilineSpacing(recipe.nutrition||''),recipe.title||'',recipe.source?.url||'');
   recipe.equipment=(Array.isArray(recipe.equipment)?recipe.equipment:String(recipe.equipment||'').split(/\n+/)).map(cleanInlineSpacing).filter(Boolean);
+  const ratingNum=Number(recipe.rating);
+  recipe.rating=Number.isFinite(ratingNum)&&ratingNum>=1?Math.min(5,Math.max(1,Math.round(ratingNum))):0;
   upgradeRecipeSchema(recipe);
   return recipe;
 }
@@ -1396,11 +1412,12 @@ async function recipeCardHtml(r, match=null) {
   const tags = [vr.type||vr.category, ...(vr.cuisine||[]), ...(vr.dietary||[]), ...(vr.traits||[])].filter(Boolean).slice(0,3).map(displayTaxonomy);
   return `<article class="recipe-card">
     ${match ? `<div class="match-badge match-${match.status}">${escapeHtml(matchStatusLabel(match))} · ${Math.round(match.score*100)}%</div>`:''}
-    ${r.favorite ? `<button class="favorite-dot" data-fav="${r.id}" aria-label="Remove favorite">★</button>`:''}
+    ${r.favorite ? `<button class="favorite-dot" data-fav="${r.id}" aria-label="Remove favorite">♥</button>`:''}
     <button class="card-hit" data-recipe="${r.id}">
       ${img ? `<img class="recipe-thumb" src="${escapeHtml(img)}" alt="" loading="lazy">` : `<div class="recipe-thumb placeholder">⌑</div>`}
       <div class="recipe-card-body">
         <h3>${escapeHtml(vr.title)}</h3>
+        ${normalizeRating(r.rating)?`<div class="card-rating" aria-label="${normalizeRating(r.rating)}/5">${ratingStars(r.rating)}</div>`:''}
         <div class="card-meta">
           <span>${(r.ingredients||[]).filter(i=>i.kind!=='group').length} ${((r.ingredients||[]).filter(i=>i.kind!=='group').length===1?t('ingredientSingular'):t('ingredientPlural'))}</span>
           <span>·</span><span>${escapeHtml(sourceDisplay(r))}</span>
@@ -1598,7 +1615,7 @@ async function openRecipe(id) {
   const r=recipes.find(x=>x.id===id); if(!r)return;
   const vr=currentRecipeView(r);
   activeRecipeId=id;
-  $('#favoriteRecipeBtn').textContent=r.favorite?'★':'☆';
+  $('#favoriteRecipeBtn').textContent=r.favorite?'♥':'♡';
   let hero='';
   if (r.coverMediaId) hero=await getMediaUrl(r.coverMediaId);
   if (!hero) hero=r.imageUrl||'';
@@ -1616,6 +1633,7 @@ async function openRecipe(id) {
     <div class="recipe-detail-body">
       <div class="eyebrow">${escapeHtml(sourceDisplay(r).toUpperCase())}${r.author?` · ${escapeHtml(r.author)}`:''}</div>
       <h2>${escapeHtml(vr.title)}</h2>
+      <div class="detail-rating"><span>${escapeHtml(t('rating'))}</span><div id="detailRatingStars" class="star-rating" role="radiogroup" aria-label="${escapeHtml(t('rating'))}">${ratingButtonsHtml(r.rating,'detail')}</div><button type="button" id="clearDetailRatingBtn" class="text-btn ${normalizeRating(r.rating)?'':'hidden'}">${escapeHtml(t('unrated'))}</button></div>
       ${renderRecipeFacts(vr)}
       ${vr.description?`<p class="recipe-description">${escapeHtml(vr.description)}</p>`:''}
       <div class="detail-tags">${[vr.type||vr.category,...(vr.cuisine||[]),...(vr.dietary||[]),...(vr.traits||[])].filter(Boolean).map(displayTaxonomy).map(x=>`<span class="mini-tag">${escapeHtml(x)}</span>`).join('')}</div>
@@ -1630,6 +1648,8 @@ async function openRecipe(id) {
       ${r.source?.url?`<div class="detail-section"><h3>${escapeHtml(t('source'))}</h3><a class="source-link" href="${escapeHtml(r.source.url)}" target="_blank" rel="noopener">${escapeHtml(r.source.url)} ↗</a></div>`:''}
     </div>`;
   $('#detailShopBtn').onclick=()=>openShoppingPicker(r.id);
+  $$('[data-rating-value]', $('#detailRatingStars')).forEach(btn=>btn.onclick=async()=>{await setRecipeRating(r.id,btn.dataset.ratingValue);await openRecipe(r.id);});
+  if($('#clearDetailRatingBtn')) $('#clearDetailRatingBtn').onclick=async()=>{await setRecipeRating(r.id,0);await openRecipe(r.id);};
   $$('[data-measurement]', $('#recipeDetail')).forEach(btn=>{const active=btn.dataset.measurement===(state.measurementSystem||'metric');btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',active?'true':'false');btn.onclick=()=>setMeasurementSystem(btn.dataset.measurement);});
   $('#detailPantryMatchBtn').onclick=()=>{ $('#recipeDialog').close(); state.available=[]; go('cook'); toast(state.language==='fi'?'Lisää mitä sinulla on tai käytä kotivarastoa':state.language==='it'?'Aggiungi ciò che hai o usa la dispensa salvata':'Add what you have, or use your saved pantry'); };
   if(!$('#recipeDialog').open) $('#recipeDialog').showModal();
@@ -1718,6 +1738,7 @@ function openEditor(recipe, isNew=false) {
   editorDraft=structuredClone(recipe);
   $('#editorHeading').textContent=isNew?t('reviewRecipe'):t('editRecipe');
   $('#editTitle').value=recipe.title||'';
+  renderEditorRating(recipe.rating);
   $('#editDescription').value=recipe.description||'';
   $('#editServings').value=recipe.servings||'';
   $('#editPrepTime').value=recipe.prepTime||'';
@@ -2397,11 +2418,14 @@ function bindEvents(){
   cropCanvas.addEventListener('pointermove',e=>{if(!cropState?.drag)return;const rect=cropCanvas.getBoundingClientRect();const sx=cropCanvas.width/rect.width,sy=cropCanvas.height/rect.height;cropState.x+=(e.clientX-cropState.drag.px)*sx;cropState.y+=(e.clientY-cropState.drag.py)*sy;cropState.drag={px:e.clientX,py:e.clientY};drawCrop();});
   cropCanvas.addEventListener('pointerup',()=>{if(cropState)cropState.drag=null;});
   cropCanvas.addEventListener('pointercancel',()=>{if(cropState)cropState.drag=null;});
-  $('#favoriteRecipeBtn').onclick=async()=>{await toggleFavorite(activeRecipeId);const r=recipes.find(x=>x.id===activeRecipeId);$('#favoriteRecipeBtn').textContent=r?.favorite?'★':'☆';};
+  $('#favoriteRecipeBtn').onclick=async()=>{await toggleFavorite(activeRecipeId);const r=recipes.find(x=>x.id===activeRecipeId);$('#favoriteRecipeBtn').textContent=r?.favorite?'♥':'♡';};
   $('#editRecipeBtn').onclick=()=>{const r=recipes.find(x=>x.id===activeRecipeId);if(r){$('#recipeDialog').close();openEditor(r,false);}};
+  $('#editRatingStars').onclick=e=>{const btn=e.target.closest('[data-rating-value]');if(!btn||!editorDraft)return;editorDraft.rating=normalizeRating(btn.dataset.ratingValue);renderEditorRating(editorDraft.rating);};
+  $('#clearEditRatingBtn').onclick=()=>{if(!editorDraft)return;editorDraft.rating=0;renderEditorRating(0);};
   $('#recipeEditor').addEventListener('submit',async e=>{
     e.preventDefault();if(!editorDraft)return;
     editorDraft.title=cleanInlineSpacing($('#editTitle').value)||'Untitled recipe';
+    editorDraft.rating=normalizeRating(editorDraft.rating);
     editorDraft.description=cleanMultilineSpacing($('#editDescription').value);
     editorDraft.servings=cleanInlineSpacing($('#editServings').value);
     editorDraft.prepTime=cleanInlineSpacing($('#editPrepTime').value);
@@ -2468,7 +2492,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=23',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=24',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}

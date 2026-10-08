@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=23" />
+  <link rel="manifest" href="manifest.webmanifest?v=24" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
   <header class="app-header">
@@ -274,7 +274,7 @@
       <div class="modal-top">
         <button class="icon-btn ghost" data-close-dialog="recipeDialog">×</button>
         <div class="modal-actions">
-          <button id="favoriteRecipeBtn" class="icon-btn ghost" title="Favorite">☆</button>
+          <button id="favoriteRecipeBtn" class="icon-btn ghost" title="Favorite">♡</button>
           <button id="editRecipeBtn" class="icon-btn ghost" title="Edit">✎</button>
         </div>
       </div>
@@ -297,6 +297,13 @@
         </div>
         <div id="importQualityPanel" class="import-quality hidden" aria-live="polite"></div>
         <label><span data-i18n="title">Title</span><input id="editTitle" required /></label>
+        <div class="rating-editor-field">
+          <span data-i18n="rating">Rating</span>
+          <div class="rating-editor-row">
+            <div id="editRatingStars" class="star-rating" role="radiogroup" aria-label="Rating"></div>
+            <button type="button" id="clearEditRatingBtn" class="text-btn hidden" data-i18n="unrated">Unrated</button>
+          </div>
+        </div>
         <label><span data-i18n="description">Description</span><textarea id="editDescription" rows="3" placeholder="Short recipe description" data-i18n-placeholder="descriptionPlaceholder"></textarea></label>
         <div class="recipe-meta-editor">
           <label><span data-i18n="servings">Servings</span><input id="editServings" placeholder="e.g. 4" data-i18n-placeholder="servingsPlaceholder" /></label>
@@ -384,6 +391,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=23"></script>
+  <script type="module" src="app.js?v=24"></script>
 </body>
 </html>

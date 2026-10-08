@@ -1,4 +1,4 @@
-import { durationMinutes, normalizeUrl } from './recipe-core.js?v=19';
+import { durationMinutes, normalizeUrl } from './recipe-core.js?v=24';
 
 const clean = (value='') => String(value ?? '')
   .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g,' ')
@@ -19,7 +19,7 @@ export function createRecipeDraft(overrides={}) {
   return {
     id:'', title:'', type:'Recipe', category:'Recipe', cuisine:[], dietary:[], traits:[], tags:[],
     description:'', servings:'', prepTime:'', cookTime:'', restTime:'', totalTime:'', temperature:'', author:'',
-    ingredients:[], steps:[], equipment:[], notes:'', nutrition:'', favorite:false,
+    ingredients:[], steps:[], equipment:[], notes:'', nutrition:'', favorite:false, rating:0,
     source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:''},
     sourceLanguage:'', translations:{}, translationUpdatedAt:0, translationMissing:[],
     imageUrl:'', mediaId:'', mediaType:'', thumbnailId:'', coverMediaId:'', coverPreset:'recipe',

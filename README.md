@@ -1,24 +1,16 @@
-# Recipe Vault v23
+# Recipe Vault v24
 
-A local-first recipe library PWA for GitHub Pages.
+A local-first, installable recipe library for GitHub Pages.
 
-## v23 data cleanup and restore safety
+## v24 star ratings
 
-- Keeps application version and recipe schema version separate in new backups (`appVersion`, `schemaVersion`).
-- Migrates legacy broad `Dinner` recipes when a stronger type is evident (for example spaghetti -> Pasta).
-- Translation engine v23 revalidates legacy translations against the deterministic EN/FI/IT recipe vocabulary.
-- Units are controlled vocabulary and are never sent to the generic translator.
-- Corrects ambiguous food vocabulary such as honey and orange using deterministic recipe translations.
-- Shared translation cache is now only for Pantry / temporary / Shopping text; duplicated recipe-ingredient cache entries are pruned.
-- Website import extracts WPRM/HTML author, servings, description, image and nutrition metadata when JSON-LD is unavailable.
-- Invalid nutrition fields containing only a recipe title/source URL are discarded.
-- Backup import now shows a preflight summary and offers Merge, Replace, or Cancel.
-- ZIP restore reports missing media and clears unusable media references on Replace; Merge preserves matching media already on the device when possible.
+- Adds an optional 1–5 star rating to every recipe. Existing recipes remain unrated.
+- Ratings can be set directly from the recipe detail view or in the recipe editor.
+- Rated recipes show their stars on collection cards.
+- Favorites remain a separate concept and now use a heart icon so they are not confused with ratings.
+- Compact JSON and Full ZIP backups preserve ratings. The compact recipe schema is now version 20; older backups migrate with rating = unrated.
+- All existing import, pantry, shopping, translation, backup and restore behavior is retained.
 
-## Backup formats
+## Deployment
 
-**Compact JSON** contains recipes, translations, pantry, shopping and settings without local image/PDF/video blobs.
-
-**Full ZIP** contains `recipes.json`, `media-index.json`, and the actual locally stored media in `media/`.
-
-Keep the existing GitHub Pages workflow (`.github/workflows/deploy.yml`) unchanged when updating the app files.
+Upload the root files to the GitHub Pages repository and keep the existing `.github/workflows/deploy.yml` unchanged.

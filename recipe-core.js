@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 const TYPE_RULES = [
   ['Dessert', /\b(cake|cheesecake|cookie|cookies|brownie|dessert|pudding|tart|ice cream|kakku|jälkiruoka|dolce|torta|biscotti)\b/i],
@@ -124,6 +124,8 @@ export function upgradeRecipeSchema(recipe={}){
   // Keep legacy fields for compatibility with older builds/backups.
   r.category=r.type;
   r.tags=uniq([...(r.cuisine||[]),...(r.dietary||[]),...(r.traits||[])]);
+  const ratingNum=Number(r.rating);
+  r.rating=Number.isFinite(ratingNum)&&ratingNum>=1?Math.min(5,Math.max(1,Math.round(ratingNum))):0;
   r.source=r.source&&typeof r.source==='object'?r.source:{type:'manual',url:'',label:'',filename:''};
   r.source.sourceKey=sourceKeyFor(r);
   r.coverPreset=coverPresetFor(r);
@@ -216,7 +218,7 @@ export function compactRecipe(recipe={}){
   const r=upgradeRecipeSchema({...recipe,source:{...(recipe.source||{})}});
   const out={
     id:r.id,t:r.title,ty:r.type,cu:r.cuisine||[],di:r.dietary||[],tr:r.traits||[],sv:r.servings||'',pt:r.prepTime||'',ct:r.cookTime||'',rt:r.restTime||'',tt:r.totalTime||'',temp:r.temperature||'',au:r.author||'',d:r.description||'',
-    ing:(r.ingredients||[]).map(compactIngredient),st:r.steps||[],eq:r.equipment||[],no:r.notes||'',nu:r.nutrition||'',fav:r.favorite?1:0,
+    ing:(r.ingredients||[]).map(compactIngredient),st:r.steps||[],eq:r.equipment||[],no:r.notes||'',nu:r.nutrition||'',fav:r.favorite?1:0,ra:r.rating||0,
     src:r.source||{},img:(/^data:/i.test(String(r.imageUrl||''))?'':(r.imageUrl||'')),mid:r.mediaId||'',mt:r.mediaType||'',tid:r.thumbnailId||'',cid:r.coverMediaId||'',cp:r.coverPreset||'',sl:r.sourceLanguage||'',xl:r.translations||{},xm:r.translationMeta||{},tu:r.translationUpdatedAt||0,tm:r.translationMissing||[],ca:r.createdAt||0,ua:r.updatedAt||0
   };
   return out;
@@ -224,6 +226,6 @@ export function compactRecipe(recipe={}){
 export function expandRecipe(r={}){
   if(!('t' in r))return upgradeRecipeSchema(r);
   return upgradeRecipeSchema({
-    id:r.id,title:r.t||'',type:r.ty||'Recipe',category:r.ty||'Recipe',cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',sourceLanguage:r.sl||'',translations:r.xl||{},translationMeta:r.xm||{},translationUpdatedAt:r.tu||0,translationMissing:r.tm||[],createdAt:r.ca||0,updatedAt:r.ua||0
+    id:r.id,title:r.t||'',type:r.ty||'Recipe',category:r.ty||'Recipe',cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),rating:Number(r.ra)||0,source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',sourceLanguage:r.sl||'',translations:r.xl||{},translationMeta:r.xm||{},translationUpdatedAt:r.tu||0,translationMissing:r.tm||[],createdAt:r.ca||0,updatedAt:r.ua||0
   });
 }
