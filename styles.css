@@ -198,6 +198,9 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .detail-section h3 { margin:0 0 10px; font-size:15px; }
 .ingredient-list, .step-list { margin:0; padding:0; list-style:none; }
 .ingredient-list li { padding:7px 0; display:grid; grid-template-columns:minmax(74px,auto) 1fr; gap:10px; border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent); }
+.ingredient-list li.ingredient-at-home { padding:8px 10px; margin:2px 0; border-bottom-color:transparent; border-radius:10px; background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+.ingredient-home-badge { margin-left:6px; background:color-mix(in srgb,var(--accent) 16%,var(--surface)); color:var(--accent); }
+.detail-actions .secondary.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
 .ingredient-qty { color:var(--muted); font-variant-numeric:tabular-nums; }
 .step-list { counter-reset:steps; }
 .step-list li { counter-increment:steps; position:relative; padding:7px 0 9px 34px; line-height:1.5; }
