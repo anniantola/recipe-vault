@@ -1,7 +1,7 @@
-import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=24';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=24';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=24';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=24';
+import { SCHEMA_VERSION, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=25';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=25';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=25';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=25';
 const APP_VERSION = 24;
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -180,7 +180,6 @@ function ratingButtonsHtml(value,scope='rating'){const n=normalizeRating(value);
 function renderEditorRating(value){
   const root=$('#editRatingStars');if(!root)return;
   const n=normalizeRating(value);root.innerHTML=ratingButtonsHtml(n,'editor');root.setAttribute('aria-label',t('rating'));
-  $('#clearEditRatingBtn')?.classList.toggle('hidden',!n);
 }
 async function setRecipeRating(id,value){
   const r=recipes.find(x=>x.id===id);if(!r)return;
@@ -1633,7 +1632,7 @@ async function openRecipe(id) {
     <div class="recipe-detail-body">
       <div class="eyebrow">${escapeHtml(sourceDisplay(r).toUpperCase())}${r.author?` · ${escapeHtml(r.author)}`:''}</div>
       <h2>${escapeHtml(vr.title)}</h2>
-      <div class="detail-rating"><span>${escapeHtml(t('rating'))}</span><div id="detailRatingStars" class="star-rating" role="radiogroup" aria-label="${escapeHtml(t('rating'))}">${ratingButtonsHtml(r.rating,'detail')}</div><button type="button" id="clearDetailRatingBtn" class="text-btn ${normalizeRating(r.rating)?'':'hidden'}">${escapeHtml(t('unrated'))}</button></div>
+      <div class="detail-rating"><span>${escapeHtml(t('rating'))}</span><div id="detailRatingStars" class="star-rating" role="radiogroup" aria-label="${escapeHtml(t('rating'))}">${ratingButtonsHtml(r.rating,'detail')}</div></div>
       ${renderRecipeFacts(vr)}
       ${vr.description?`<p class="recipe-description">${escapeHtml(vr.description)}</p>`:''}
       <div class="detail-tags">${[vr.type||vr.category,...(vr.cuisine||[]),...(vr.dietary||[]),...(vr.traits||[])].filter(Boolean).map(displayTaxonomy).map(x=>`<span class="mini-tag">${escapeHtml(x)}</span>`).join('')}</div>
@@ -1648,8 +1647,7 @@ async function openRecipe(id) {
       ${r.source?.url?`<div class="detail-section"><h3>${escapeHtml(t('source'))}</h3><a class="source-link" href="${escapeHtml(r.source.url)}" target="_blank" rel="noopener">${escapeHtml(r.source.url)} ↗</a></div>`:''}
     </div>`;
   $('#detailShopBtn').onclick=()=>openShoppingPicker(r.id);
-  $$('[data-rating-value]', $('#detailRatingStars')).forEach(btn=>btn.onclick=async()=>{await setRecipeRating(r.id,btn.dataset.ratingValue);await openRecipe(r.id);});
-  if($('#clearDetailRatingBtn')) $('#clearDetailRatingBtn').onclick=async()=>{await setRecipeRating(r.id,0);await openRecipe(r.id);};
+  $$('[data-rating-value]', $('#detailRatingStars')).forEach(btn=>btn.onclick=async()=>{const clicked=normalizeRating(btn.dataset.ratingValue);const next=normalizeRating(r.rating)===clicked?0:clicked;await setRecipeRating(r.id,next);await openRecipe(r.id);});
   $$('[data-measurement]', $('#recipeDetail')).forEach(btn=>{const active=btn.dataset.measurement===(state.measurementSystem||'metric');btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',active?'true':'false');btn.onclick=()=>setMeasurementSystem(btn.dataset.measurement);});
   $('#detailPantryMatchBtn').onclick=()=>{ $('#recipeDialog').close(); state.available=[]; go('cook'); toast(state.language==='fi'?'Lisää mitä sinulla on tai käytä kotivarastoa':state.language==='it'?'Aggiungi ciò che hai o usa la dispensa salvata':'Add what you have, or use your saved pantry'); };
   if(!$('#recipeDialog').open) $('#recipeDialog').showModal();
@@ -2420,8 +2418,7 @@ function bindEvents(){
   cropCanvas.addEventListener('pointercancel',()=>{if(cropState)cropState.drag=null;});
   $('#favoriteRecipeBtn').onclick=async()=>{await toggleFavorite(activeRecipeId);const r=recipes.find(x=>x.id===activeRecipeId);$('#favoriteRecipeBtn').textContent=r?.favorite?'♥':'♡';};
   $('#editRecipeBtn').onclick=()=>{const r=recipes.find(x=>x.id===activeRecipeId);if(r){$('#recipeDialog').close();openEditor(r,false);}};
-  $('#editRatingStars').onclick=e=>{const btn=e.target.closest('[data-rating-value]');if(!btn||!editorDraft)return;editorDraft.rating=normalizeRating(btn.dataset.ratingValue);renderEditorRating(editorDraft.rating);};
-  $('#clearEditRatingBtn').onclick=()=>{if(!editorDraft)return;editorDraft.rating=0;renderEditorRating(0);};
+  $('#editRatingStars').onclick=e=>{const btn=e.target.closest('[data-rating-value]');if(!btn||!editorDraft)return;const clicked=normalizeRating(btn.dataset.ratingValue);editorDraft.rating=normalizeRating(editorDraft.rating)===clicked?0:clicked;renderEditorRating(editorDraft.rating);};
   $('#recipeEditor').addEventListener('submit',async e=>{
     e.preventDefault();if(!editorDraft)return;
     editorDraft.title=cleanInlineSpacing($('#editTitle').value)||'Untitled recipe';
@@ -2492,7 +2489,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=24',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=25',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
