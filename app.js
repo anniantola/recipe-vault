@@ -1,8 +1,8 @@
-import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=28';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=28';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=28';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=28';
-const APP_VERSION = 28;
+import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=29';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=29';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=29';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=29';
+const APP_VERSION = 29;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -129,6 +129,7 @@ let state = {
   available: [],
   shopping: [],
   textTranslations: {},
+  customTaxonomy: { type: [], cuisine: [], dietary: [], traits: [] },
   theme: 'system',
   language: 'en',
   measurementSystem: 'metric',
@@ -143,6 +144,61 @@ let currentPage = 'recipes';
 let previousMainPage = 'recipes';
 let editorDraft = null;
 let editorTaxonomySelections = { type: [], cuisine: [], dietary: [], traits: [] };
+const TAXONOMY_GROUPS = ['type','cuisine','dietary','traits'];
+function emptyCustomTaxonomy(){return {type:[],cuisine:[],dietary:[],traits:[]};}
+function taxonomyValueKey(value=''){return normalizeText(String(value||''));}
+function isBuiltInTaxonomyValue(group,value){
+  const normalized=normalizeTaxonomyValue(value,group);
+  const key=taxonomyValueKey(normalized);
+  return (TAXONOMY_OPTIONS[group]||[]).some(item=>taxonomyValueKey(item)===key);
+}
+function normalizeCustomTaxonomyRegistry(value){
+  const src=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+  const out=emptyCustomTaxonomy();
+  for(const group of TAXONOMY_GROUPS){
+    const values=Array.isArray(src[group])?src[group]:[];
+    out[group]=normalizeTaxonomyList(values,group).filter(item=>!isBuiltInTaxonomyValue(group,item));
+  }
+  return out;
+}
+function registerCustomTaxonomyValues(group,values=[]){
+  if(!TAXONOMY_GROUPS.includes(group))return false;
+  const registry=normalizeCustomTaxonomyRegistry(state.customTaxonomy);
+  const list=registry[group];
+  const seen=new Set(list.map(taxonomyValueKey));
+  let changed=false;
+  for(const item of normalizeTaxonomyList(values,group)){
+    if(isBuiltInTaxonomyValue(group,item))continue;
+    const key=taxonomyValueKey(item);if(!key||seen.has(key))continue;
+    seen.add(key);list.push(item);changed=true;
+  }
+  if(changed)list.sort((a,b)=>a.localeCompare(b,state.language||'en',{sensitivity:'base'}));
+  state.customTaxonomy=registry;
+  return changed;
+}
+function registerRecipeCustomTaxonomy(recipe){
+  let changed=false;
+  const values={
+    type:(recipe?.types||[recipe?.type||recipe?.category]).filter(Boolean),
+    cuisine:recipe?.cuisine||[],
+    dietary:recipe?.dietary||[],
+    traits:recipe?.traits||[]
+  };
+  for(const group of TAXONOMY_GROUPS)if(registerCustomTaxonomyValues(group,values[group]))changed=true;
+  return changed;
+}
+function discoverCustomTaxonomyFromRecipes(){let changed=false;for(const recipe of recipes)if(registerRecipeCustomTaxonomy(recipe))changed=true;return changed;}
+function mergeCustomTaxonomyRegistries(...registries){
+  const out=emptyCustomTaxonomy();
+  for(const registry of registries){
+    const normalized=normalizeCustomTaxonomyRegistry(registry);
+    for(const group of TAXONOMY_GROUPS){
+      const seen=new Set(out[group].map(taxonomyValueKey));
+      for(const value of normalized[group]){const key=taxonomyValueKey(value);if(key&&!seen.has(key)){seen.add(key);out[group].push(value);}}
+    }
+  }
+  return out;
+}
 let deferredInstallPrompt = null;
 let pendingShoppingRecipeId = null;
 let confirmResolver = null;
@@ -309,6 +365,10 @@ async function loadAll() {
   if(!Array.isArray(state.available)) state.available=[];
   if(!Array.isArray(state.shopping)) state.shopping=[];
   if(!state.textTranslations || typeof state.textTranslations!=='object' || Array.isArray(state.textTranslations)) state.textTranslations={};
+  const previousCustomTaxonomy=JSON.stringify(state.customTaxonomy||{});
+  state.customTaxonomy=normalizeCustomTaxonomyRegistry(state.customTaxonomy);
+  const learnedCustomTaxonomy=discoverCustomTaxonomyFromRecipes();
+  const customTaxonomyChanged=learnedCustomTaxonomy||JSON.stringify(state.customTaxonomy)!==previousCustomTaxonomy;
   pruneTextTranslationCache();
   // The library should always open showing the complete collection.
   state.activeRecipeFilter='All';
@@ -320,6 +380,7 @@ async function loadAll() {
   const fastMeasurements = localStorage.getItem('recipe-vault-measurements');
   if (['metric','us'].includes(fastMeasurements)) state.measurementSystem = fastMeasurements;
   if (!['metric','us'].includes(state.measurementSystem)) state.measurementSystem = 'metric';
+  if(customTaxonomyChanged) await saveState();
   applyTheme();
   applyLanguage();
 }
@@ -1731,6 +1792,7 @@ function openShoppingPicker(recipeId) {
 
 async function saveRecipe(recipe) {
   cleanRecipeRecord(recipe);
+  registerRecipeCustomTaxonomy(recipe);
   recipe.source=recipe.source||{type:'manual'};recipe.source.sourceKey=sourceKeyFor(recipe);
   // Translate authoritative recipe text once on save; the original source text remains untouched.
   await ensureRecipeTranslations(recipe,recipe.sourceLanguage||state.language||'en');
@@ -1796,9 +1858,15 @@ function renderStepEditor(steps=[]){const root=$('#stepEditorRows');root.innerHT
 function addStepEditorRow(){const root=$('#stepEditorRows');root.insertAdjacentHTML('beforeend',stepEditorRow(''));bindEditorRowActions(root);}
 function collectStepEditor(){return $$('[data-step-row]',$('#stepEditorRows')).map(row=>cleanInlineSpacing($('.step-text',row)?.value||'').replace(/^\s*\d+[.)]\s*/, '')).filter(Boolean);}
 function taxonomyEditorId(group){return {type:'#editType',cuisine:'#editCuisine',dietary:'#editDietary',traits:'#editTraits'}[group];}
+function normalizeEditorTaxonomyValues(group,values=[]){
+  const normalized=normalizeTaxonomyList(values,group);
+  const saved=normalizeCustomTaxonomyRegistry(state.customTaxonomy)[group]||[];
+  const savedByKey=new Map(saved.map(value=>[taxonomyValueKey(value),value]));
+  return normalized.map(value=>isBuiltInTaxonomyValue(group,value)?normalizeTaxonomyValue(value,group):(savedByKey.get(taxonomyValueKey(value))||value));
+}
 function parseTaxonomyInput(group){
   const el=$(taxonomyEditorId(group));if(!el)return [];
-  return normalizeTaxonomyList(el.value.split(',').map(cleanInlineSpacing).filter(Boolean),group);
+  return normalizeEditorTaxonomyValues(group,el.value.split(',').map(cleanInlineSpacing).filter(Boolean));
 }
 function syncTaxonomySelectionFromInput(group){
   editorTaxonomySelections[group]=parseTaxonomyInput(group);
@@ -1808,16 +1876,26 @@ function taxonomyInputValues(group){
 }
 function setTaxonomyInputValues(group,values){
   const input=$(taxonomyEditorId(group));if(!input)return;
-  const normalized=normalizeTaxonomyList(values,group);
+  const normalized=normalizeEditorTaxonomyValues(group,values);
   editorTaxonomySelections[group]=normalized;
   input.value=normalized.join(', ');
+}
+function taxonomySuggestionValues(group){
+  const builtIns=[...(TAXONOMY_OPTIONS[group]||[])];
+  const saved=[...(normalizeCustomTaxonomyRegistry(state.customTaxonomy)[group]||[])];
+  const current=taxonomyInputValues(group).filter(value=>!isBuiltInTaxonomyValue(group,value));
+  const out=[],seen=new Set();
+  for(const value of [...builtIns,...saved,...current]){const key=taxonomyValueKey(value);if(!key||seen.has(key))continue;seen.add(key);out.push(value);}
+  const builtInCount=builtIns.length;
+  const tail=out.slice(builtInCount).sort((a,b)=>localizedTaxonomyLabel(a).localeCompare(localizedTaxonomyLabel(b),state.language||'en',{sensitivity:'base'}));
+  return [...out.slice(0,builtInCount),...tail];
 }
 function renderTaxonomySuggestions(){
   const roots={type:'#typeSuggestions',cuisine:'#cuisineSuggestions',dietary:'#dietarySuggestions',traits:'#traitsSuggestions'};
   for(const group of Object.keys(roots)){
     const root=$(roots[group]);if(!root)continue;
     const current=taxonomyInputValues(group);
-    root.innerHTML=(TAXONOMY_OPTIONS[group]||[]).map(value=>`<button type="button" class="taxonomy-suggestion multi ${current.includes(value)?'active':''}" data-taxonomy-group="${group}" data-taxonomy-value="${escapeHtml(value)}" aria-pressed="${current.includes(value)?'true':'false'}">${escapeHtml(displayTaxonomy(value))}</button>`).join('');
+    root.innerHTML=taxonomySuggestionValues(group).map(value=>`<button type="button" class="taxonomy-suggestion multi ${current.includes(value)?'active':''}" data-taxonomy-group="${group}" data-taxonomy-value="${escapeHtml(value)}" aria-pressed="${current.includes(value)?'true':'false'}">${escapeHtml(localizedTaxonomyLabel(value))}</button>`).join('');
   }
   $$('[data-taxonomy-group]').forEach(btn=>btn.onclick=()=>{
     const group=btn.dataset.taxonomyGroup,value=btn.dataset.taxonomyValue;
@@ -2418,13 +2496,14 @@ async function restoreBackupData(parsed,mediaItems=[],info={}){
       pantry:uniqueStrings([...(state.pantry||[]),...(importedState.pantry||[])]),
       available:[],
       shopping:mergeShopping(state.shopping||[],importedShopping),
-      textTranslations:{...(importedState.textTranslations||{}),...(state.textTranslations||{})}
+      textTranslations:{...(importedState.textTranslations||{}),...(state.textTranslations||{})},
+      customTaxonomy:mergeCustomTaxonomyRegistries(state.customTaxonomy,importedState.customTaxonomy)
     };
     pruneTextTranslationCache();await saveState();
   }else{
     for(const r of parsed.recipes)await idbPut('recipes',clearUnavailableMediaRefs(r,availableIds));
     for(const m of importedMedia)await idbPut('media',m);
-    state={...state,...parsed.state,available:[]};pruneTextTranslationCache();await saveState();
+    state={...state,...parsed.state,available:[],customTaxonomy:normalizeCustomTaxonomyRegistry(parsed.state?.customTaxonomy)};pruneTextTranslationCache();await saveState();
   }
   await loadAll();await renderAll();setStatus('',false);toast(t('backupRestored'));setTimeout(()=>backfillTranslations(),250);
 }
@@ -2572,7 +2651,7 @@ function bindEvents(){
   $$('[data-measurement]').forEach(btn=>btn.addEventListener('click',()=>setMeasurementSystem(btn.dataset.measurement)));
   document.addEventListener('change',e=>{if(e.target?.id==='languageSelect') setLanguage(e.target.value);});
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system')applyTheme();});
-  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],textTranslations:{},theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeFilters:emptyRecipeFilters(),recipeSort:'recent'};recipes=[];clearTranslationMemory();await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
+  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],textTranslations:{},customTaxonomy:emptyCustomTaxonomy(),theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeFilters:emptyRecipeFilters(),recipeSort:'recent'};recipes=[];clearTranslationMemory();await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
 
   $('#confirmCancel').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(false);confirmResolver=null;};
   $('#confirmOk').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(true);confirmResolver=null;};
@@ -2599,7 +2678,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=28',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=29',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
