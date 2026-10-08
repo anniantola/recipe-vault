@@ -1,8 +1,8 @@
-import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=31';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=31';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=31';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=31';
-const APP_VERSION = 31;
+import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=32';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=32';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=32';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=32';
+const APP_VERSION = 32;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -596,11 +596,10 @@ async function openImportedDraft(recipe, sourceMeta={}) {
       recipe.favorite=existing.favorite;
       recipe.coverMediaId=existing.coverMediaId||recipe.coverMediaId||'';
       recipe.updatedAt=Date.now();
-      openEditor(recipe,false);
-      return;
+      return await openEditor(recipe,false,{persistImmediately:true});
     }
   }
-  openEditor(recipe,true);
+  return await openEditor(recipe,true,{persistImmediately:true});
 }
 function qualityIssueText(issue={}){
   const key={titleMissing:'issueTitleMissing',titleSpacing:'issueTitleSpacing',fewIngredients:'issueFewIngredients',noSteps:'issueNoSteps',ingredientSpacing:'issueIngredientSpacing',stepImbalance:'issueStepImbalance',servingsMissing:'issueServingsMissing',tempMissing:'issueTempMissing',totalTooShort:'issueTotalTooShort'}[issue.code];
@@ -1460,24 +1459,51 @@ function sourceDisplay(recipe) {
   return ({text:t('textSource'),website:t('webSource'),image:t('photoSource'),pdf:t('pdfSource'),video:t('videoSource'),manual:t('manualSource'),shared:t('sharedSource')})[type] || sourceLabel(recipe);
 }
 
+const mediaUrlCache = new Map();
+const mediaUrlLoads = new Map();
+function revokeMediaUrl(id){
+  const url=mediaUrlCache.get(id);
+  if(url){try{URL.revokeObjectURL(url);}catch(_){} mediaUrlCache.delete(id);}
+  mediaUrlLoads.delete(id);
+}
+function revokeAllMediaUrls(){
+  for(const id of [...mediaUrlCache.keys()])revokeMediaUrl(id);
+  mediaUrlLoads.clear();
+}
 async function getMediaUrl(id) {
   if (!id) return '';
-  try {
-    const item = await idbGet('media', id);
-    return item?.blob instanceof Blob ? URL.createObjectURL(item.blob) : '';
-  } catch (err) {
-    console.warn('Could not load stored recipe media', id, err);
-    return '';
-  }
+  if(mediaUrlCache.has(id))return mediaUrlCache.get(id);
+  if(mediaUrlLoads.has(id))return mediaUrlLoads.get(id);
+  const load=(async()=>{
+    try {
+      const item = await idbGet('media', id);
+      if(!(item?.blob instanceof Blob))return '';
+      const url=URL.createObjectURL(item.blob);
+      mediaUrlCache.set(id,url);
+      return url;
+    } catch (err) {
+      console.warn('Could not load stored recipe media', id, err);
+      return '';
+    } finally {
+      mediaUrlLoads.delete(id);
+    }
+  })();
+  mediaUrlLoads.set(id,load);
+  return load;
 }
 async function storeMedia(blob, meta={}) {
   const id = uid('media');
   await idbPut('media', { id, blob, type: blob.type || meta.type || '', name: meta.name || '', createdAt: Date.now() });
   return id;
 }
+async function deleteMediaById(id){
+  if(!id)return;
+  revokeMediaUrl(id);
+  await idbDelete('media',id).catch(()=>{});
+}
 async function deleteRecipeMedia(recipe) {
-  const ids = [recipe?.mediaId, recipe?.thumbnailId, recipe?.coverMediaId].filter(Boolean);
-  for (const id of ids) await idbDelete('media', id).catch(()=>{});
+  const ids = [...new Set([recipe?.mediaId, recipe?.thumbnailId, recipe?.coverMediaId].filter(Boolean))];
+  for (const id of ids) await deleteMediaById(id);
 }
 
 function recipeTaxonomyValues(recipe,group){
@@ -1896,12 +1922,16 @@ async function saveRecipe(recipe) {
   // Validation/repair metadata is derived UI state, not authoritative recipe data.
   delete recipe.importQuality;
   delete recipe.importRepairs;
+  const previous=recipes.find(r=>r.id===recipe.id)||null;
+  const previousMedia=new Set([previous?.mediaId,previous?.thumbnailId,previous?.coverMediaId].filter(Boolean));
   recipe.updatedAt=Date.now();
   if (!recipe.createdAt) recipe.createdAt=Date.now();
   await idbPut('recipes',recipe);
   const idx=recipes.findIndex(r=>r.id===recipe.id);
   if(idx>=0) recipes[idx]=recipe; else recipes.unshift(recipe);
   recipes.sort((a,b)=>recipeAddedAt(b)-recipeAddedAt(a));
+  const currentMedia=new Set([recipe.mediaId,recipe.thumbnailId,recipe.coverMediaId].filter(Boolean));
+  for(const id of previousMedia)if(!currentMedia.has(id))await deleteMediaById(id);
   await saveState();
   await renderAll();
   // Translation is derived content. Never make a user's Save wait on the network.
@@ -2002,9 +2032,117 @@ function renderTaxonomySuggestions(){
     renderTaxonomySuggestions();
   });
 }
-function openEditor(recipe, isNew=false) {
+
+const EDITOR_DRAFT_KEY='recipe-vault-editor-draft-v1';
+let editorIsNew=false;
+let editorDraftDirty=false;
+let editorDraftPersistEnabled=false;
+let editorDraftSaveTimer=null;
+
+function draftUiText(key){
+  const copy={
+    en:{
+      title:'Resume unfinished edit?',
+      text:'Recipe Vault recovered an unfinished recipe edit. Resume it? Choosing Cancel discards that draft and continues.',
+      resume:'Resume'
+    },
+    fi:{
+      title:'Jatketaanko keskeneräistä muokkausta?',
+      text:'Recipe Vault löysi keskeneräisen reseptimuokkauksen. Jatketaanko sitä? Peruuta hylkää luonnoksen ja jatkaa nykyistä toimintoa.',
+      resume:'Jatka'
+    },
+    it:{
+      title:'Riprendere la modifica incompleta?',
+      text:'Recipe Vault ha recuperato una modifica di ricetta non terminata. Vuoi riprenderla? Annulla elimina la bozza e continua.',
+      resume:'Riprendi'
+    }
+  };
+  return (copy[state.language]||copy.en)[key]||copy.en[key];
+}
+function clearEditorDraftBackup(){
+  if(editorDraftSaveTimer){clearTimeout(editorDraftSaveTimer);editorDraftSaveTimer=null;}
+  try{localStorage.removeItem(EDITOR_DRAFT_KEY);}catch(_){}
+}
+function loadEditorDraftBackup(){
+  try{
+    const raw=localStorage.getItem(EDITOR_DRAFT_KEY);if(!raw)return null;
+    const data=JSON.parse(raw);
+    if(!data||data.version!==1||!data.recipe?.id){clearEditorDraftBackup();return null;}
+    const saved=recipes.find(r=>r.id===data.recipe.id);
+    if(!data.isNew&&saved&&Number(saved.updatedAt||0)>=Number(data.savedAt||0)){clearEditorDraftBackup();return null;}
+    return data;
+  }catch(_){clearEditorDraftBackup();return null;}
+}
+function syncEditorDraftFromForm(){
+  if(!editorDraft)return editorDraft;
+  editorDraft.title=cleanInlineSpacing($('#editTitle').value)||'Untitled recipe';
+  editorDraft.rating=normalizeRating(editorDraft.rating);
+  editorDraft.description=cleanMultilineSpacing($('#editDescription').value);
+  editorDraft.servings=cleanInlineSpacing($('#editServings').value);
+  editorDraft.prepTime=cleanInlineSpacing($('#editPrepTime').value);
+  editorDraft.cookTime=cleanInlineSpacing($('#editCookTime').value);
+  editorDraft.restTime=cleanInlineSpacing($('#editRestTime').value);
+  editorDraft.totalTime=cleanInlineSpacing($('#editTotalTime').value);
+  editorDraft.temperature=normalizeTemperatureText($('#editTemperature').value);
+  for(const group of TAXONOMY_GROUPS)syncTaxonomySelectionFromInput(group);
+  editorDraft.types=taxonomyInputValues('type');
+  if(!editorDraft.types.length)editorDraft.types=['Recipe'];
+  editorDraft.type=editorDraft.types[0];
+  editorDraft.cuisine=taxonomyInputValues('cuisine');
+  editorDraft.dietary=taxonomyInputValues('dietary');
+  editorDraft.traits=taxonomyInputValues('traits');
+  editorDraft.category=editorDraft.type;
+  editorDraft.tags=[...new Set([...editorDraft.cuisine,...editorDraft.dietary,...editorDraft.traits])];
+  editorDraft.ingredients=collectIngredientEditor();
+  editorDraft.steps=collectStepEditor();
+  editorDraft.equipment=$('#editEquipment').value.split('\n').map(cleanInlineSpacing).filter(Boolean);
+  editorDraft.notes=cleanMultilineSpacing($('#editNotes').value);
+  editorDraft.nutrition=cleanMultilineSpacing($('#editNutrition').value);
+  editorDraft.source=editorDraft.source||{type:'manual'};
+  editorDraft.source.url=$('#editSourceUrl').value.trim();
+  editorDraft.source.sourceKey=editorDraft.source.url?`url:${normalizeUrl(editorDraft.source.url)}`:(editorDraft.source.fileHash?`file:${editorDraft.source.fileHash}`:(editorDraft.source.sourceKey||''));
+  return editorDraft;
+}
+function persistEditorDraftNow(){
+  if(!editorDraftPersistEnabled||!editorDraft)return;
+  try{
+    syncEditorDraftFromForm();
+    localStorage.setItem(EDITOR_DRAFT_KEY,JSON.stringify({version:1,savedAt:Date.now(),isNew:editorIsNew,recipe:editorDraft}));
+  }catch(err){console.warn('Could not autosave recipe draft',err);}
+}
+function scheduleEditorDraftSave(){
+  if(!editorDraft||!$('#editorDialog')?.open)return;
+  editorDraftDirty=true;editorDraftPersistEnabled=true;
+  if(editorDraftSaveTimer)clearTimeout(editorDraftSaveTimer);
+  editorDraftSaveTimer=setTimeout(()=>{editorDraftSaveTimer=null;persistEditorDraftNow();},350);
+}
+async function resumeStoredEditorDraft(){
+  const stored=loadEditorDraftBackup();if(!stored)return false;
+  return openEditor(stored.recipe,Boolean(stored.isNew),{skipStoredDraftCheck:true,persistImmediately:true,recovered:true});
+}
+async function promptForRecoveredEditorDraft(){
+  const stored=loadEditorDraftBackup();if(!stored)return false;
+  const resume=await confirmAction(draftUiText('title'),draftUiText('text'),draftUiText('resume'));
+  if(resume){await openEditor(stored.recipe,Boolean(stored.isNew),{skipStoredDraftCheck:true,persistImmediately:true,recovered:true});return true;}
+  clearEditorDraftBackup();return false;
+}
+async function openEditor(recipe, isNew=false, options={}) {
+  if(!options.skipStoredDraftCheck){
+    const stored=loadEditorDraftBackup();
+    if(stored){
+      const resume=await confirmAction(draftUiText('title'),draftUiText('text'),draftUiText('resume'));
+      if(resume){
+        await openEditor(stored.recipe,Boolean(stored.isNew),{skipStoredDraftCheck:true,persistImmediately:true,recovered:true});
+        return false;
+      }
+      clearEditorDraftBackup();
+    }
+  }
   cleanRecipeRecord(recipe);
   editorDraft=structuredClone(recipe);
+  editorIsNew=Boolean(isNew);
+  editorDraftDirty=Boolean(options.recovered);
+  editorDraftPersistEnabled=Boolean(options.persistImmediately||options.recovered);
   $('#editorHeading').textContent=isNew?t('reviewRecipe'):t('editRecipe');
   $('#editTitle').value=recipe.title||'';
   renderEditorRating(recipe.rating);
@@ -2037,6 +2175,8 @@ function openEditor(recipe, isNew=false) {
   renderEditorPreview(recipe);
   $('#recipePhotoInput').value='';
   $('#editorDialog').showModal();
+  if(editorDraftPersistEnabled)persistEditorDraftNow();
+  return true;
 }
 async function renderEditorPreview(recipe) {
   const box=$('#editorMediaPreview');
@@ -2100,8 +2240,12 @@ async function saveCrop(){
   const old=editorDraft.coverMediaId;
   const id=await storeMedia(blob,{type:'image/jpeg',name:'recipe-cover.jpg'});
   editorDraft.coverMediaId=id;
-  if(old && old!==id)await idbDelete('media',old).catch(()=>{});
-  closeCropDialog();await renderEditorPreview(editorDraft);toast(t('changePhoto'));
+  // Keep the currently saved cover intact until the recipe itself is saved. If
+  // the user crops repeatedly in one edit session, only the superseded draft
+  // cover can be removed immediately.
+  const savedCover=recipes.find(r=>r.id===editorDraft.id)?.coverMediaId||'';
+  if(old && old!==id && old!==savedCover)await deleteMediaById(old);
+  closeCropDialog();await renderEditorPreview(editorDraft);scheduleEditorDraftSave();toast(t('changePhoto'));
 }
 
 async function parseTextImport() {
@@ -2433,17 +2577,56 @@ async function processFile(file) {
   }
   throw new Error(`Unsupported file type: ${type||file.name}`);
 }
-async function handleFiles(fileList) {
-  const files=[...fileList];if(!files.length)return;
-  if(files.length>1) toast(`${t('importingFirst')}; ${files.length-1} ${state.language==='fi'?'lisää seuraa':state.language==='it'?'altri seguiranno':'more will follow'}`);
-  for(const file of files){
-    try{
-      const recipe=await processFile(file);
-      { const count=(recipe.ingredients||[]).filter(i=>i.kind!=='group').length; setStatus(`${file.name} · ${count} ${state.language==='fi'?'ainesta':state.language==='it'?'ingredienti':'ingredients'} · ${(recipe.steps||[]).length} ${state.language==='fi'?'vaihetta':state.language==='it'?'passaggi':'steps'}`,false); }
-      await openImportedDraft(recipe);
-      if(files.length>1) break;
-    }catch(e){console.error(e);setStatus('',false);toast(`${state.language==='fi'?'Tiedostoa ei voitu tuoda':state.language==='it'?'Impossibile importare':'Could not import'} ${file.name}`);}
+let importQueue=[];
+let importQueueProcessing=false;
+let importQueueTotal=0;
+let importQueueDone=0;
+function importQueueStatus(file){
+  const current=Math.min(importQueueDone+1,Math.max(importQueueTotal,1));
+  const prefix=state.language==='fi'?`Tuodaan tiedostoa ${current}/${importQueueTotal}`:state.language==='it'?`Importazione file ${current}/${importQueueTotal}`:`Importing file ${current}/${importQueueTotal}`;
+  setStatus(`${prefix}: ${file.name}`);
+}
+function resetImportQueueProgressIfDone(){
+  if(importQueue.length||importQueueProcessing||$('#editorDialog')?.open)return;
+  importQueueTotal=0;importQueueDone=0;setStatus('',false);
+}
+async function processImportQueueNext(){
+  if(importQueueProcessing||!importQueue.length||$('#editorDialog')?.open)return;
+  importQueueProcessing=true;
+  const entry=importQueue[0],file=entry.file;
+  try{
+    importQueueStatus(file);
+    if(!entry.recipe)entry.recipe=await processFile(file);
+    const recipe=entry.recipe;
+    const count=(recipe.ingredients||[]).filter(i=>i.kind!=='group').length;
+    setStatus(`${file.name} · ${count} ${state.language==='fi'?'ainesta':state.language==='it'?'ingredienti':'ingredients'} · ${(recipe.steps||[]).length} ${state.language==='fi'?'vaihetta':state.language==='it'?'passaggi':'steps'}`,false);
+    const opened=await openImportedDraft(recipe);
+    if(opened){
+      importQueue.shift();importQueueDone++;
+      // Continue only after this recipe review closes. The editor close handler
+      // starts the next queued file so every import still gets a review step.
+    }
+  }catch(e){
+    console.error(e);
+    importQueue.shift();importQueueDone++;
+    toast(`${state.language==='fi'?'Tiedostoa ei voitu tuoda':state.language==='it'?'Impossibile importare':'Could not import'} ${file.name}`);
+  }finally{
+    importQueueProcessing=false;
+    if(!$('#editorDialog')?.open){
+      if(importQueue.length)setTimeout(()=>processImportQueueNext(),40);
+      else resetImportQueueProgressIfDone();
+    }
   }
+}
+async function handleFiles(fileList) {
+  const files=[...fileList].filter(Boolean);if(!files.length)return;
+  importQueue.push(...files.map(file=>({file,recipe:null})));
+  importQueueTotal+=files.length;
+  if(files.length>1){
+    const msg=state.language==='fi'?`${files.length} tiedostoa lisätty tuontijonoon`:state.language==='it'?`${files.length} file aggiunti alla coda di importazione`:`${files.length} files added to the import queue`;
+    toast(msg);
+  }
+  await processImportQueueNext();
 }
 
 async function handleSharedImport() {
@@ -2582,7 +2765,7 @@ async function restoreBackupData(parsed,mediaItems=[],info={}){
   const currentMedia=mode==='merge'?await idbGetAll('media'):[];
   const availableIds=new Set([...currentMedia,...importedMedia].map(m=>m?.id).filter(Boolean));
 
-  if(mode==='replace')await Promise.all(['recipes','media','state'].map(idbClear));
+  if(mode==='replace'){revokeAllMediaUrls();clearEditorDraftBackup();await Promise.all(['recipes','media','state'].map(idbClear));}
   if(mode==='merge'){
     const existingRecipes=await idbGetAll('recipes');
     const byId=new Map(existingRecipes.map(r=>[r.id,r]));
@@ -2592,7 +2775,7 @@ async function restoreBackupData(parsed,mediaItems=[],info={}){
       const sourceKey=incoming.source?.sourceKey||sourceKeyFor(incoming);const existing=(sourceKey&&bySource.get(sourceKey))||byId.get(incoming.id)||null;
       const merged=mergeRecipeRecords(existing,incoming,availableIds);if(incoming.id&&merged.id!==incoming.id)idRemap.set(incoming.id,merged.id);await idbPut('recipes',merged);
     }
-    for(const m of importedMedia)await idbPut('media',m);
+    for(const m of importedMedia){revokeMediaUrl(m.id);await idbPut('media',m);}
     const importedState=parsed.state||{};
     const importedShopping=(importedState.shopping||[]).map(item=>({...item,sources:(item.sources||[]).map(id=>idRemap.get(id)||id)}));
     state={...state,
@@ -2605,7 +2788,7 @@ async function restoreBackupData(parsed,mediaItems=[],info={}){
     pruneTextTranslationCache();await saveState();
   }else{
     for(const r of parsed.recipes)await idbPut('recipes',clearUnavailableMediaRefs(r,availableIds));
-    for(const m of importedMedia)await idbPut('media',m);
+    for(const m of importedMedia){revokeMediaUrl(m.id);await idbPut('media',m);}
     state={...state,...parsed.state,available:[],customTaxonomy:normalizeCustomTaxonomyRegistry(parsed.state?.customTaxonomy)};pruneTextTranslationCache();await saveState();
   }
   await loadAll();await renderAll();setStatus('',false);toast(t('backupRestored'));setTimeout(()=>backfillTranslations(),250);
@@ -2670,9 +2853,9 @@ function bindEvents(){
   $$('[data-import-type]').forEach(b=>b.onclick=()=>{const type=b.dataset.importType;$$('[data-import-type]').forEach(x=>x.classList.toggle('active',x===b));$$('[data-import-panel]').forEach(p=>p.classList.toggle('active',p.dataset.importPanel===type));});
   $('#parseTextBtn').onclick=parseTextImport;
   $('#parseWebsiteBtn').onclick=parseWebsiteImport;
-  $('#manualRecipeBtn').onclick=()=>openEditor(createRecipeDraft({id:uid('recipe')}),true);
-  $('#fileInput').onchange=e=>handleFiles(e.target.files);
-  $('#cameraInput').onchange=e=>handleFiles(e.target.files);
+  $('#manualRecipeBtn').onclick=async()=>{await openEditor(createRecipeDraft({id:uid('recipe')}),true);};
+  $('#fileInput').onchange=async e=>{await handleFiles(e.target.files);e.target.value='';};
+  $('#cameraInput').onchange=async e=>{await handleFiles(e.target.files);e.target.value='';};
   const dz=$('#dropZone');
   ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag');}));
   ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag');}));
@@ -2683,6 +2866,20 @@ function bindEvents(){
   $('#clearCheckedBtn').onclick=async()=>{state.shopping=state.shopping.filter(i=>!i.checked);await saveState();renderShopping();};
 
   $$('[data-close-dialog]').forEach(b=>b.onclick=()=>$('#'+b.dataset.closeDialog).close());
+  const editorForm=$('#recipeEditor');
+  editorForm.addEventListener('input',()=>scheduleEditorDraftSave());
+  editorForm.addEventListener('change',()=>scheduleEditorDraftSave());
+  editorForm.addEventListener('click',e=>{
+    const button=e.target.closest('button');
+    if(!button||button.type==='submit'||button.id==='deleteRecipeBtn')return;
+    setTimeout(()=>scheduleEditorDraftSave(),0);
+  });
+  $('#editorDialog').addEventListener('close',()=>{
+    if(editorDraftPersistEnabled)persistEditorDraftNow();
+    editorDraft=null;editorIsNew=false;editorDraftDirty=false;editorDraftPersistEnabled=false;
+    if(importQueue.length)setTimeout(()=>processImportQueueNext(),50);else resetImportQueueProgressIfDone();
+  });
+  window.addEventListener('pagehide',()=>persistEditorDraftNow());
   $('#changeRecipePhotoBtn').onclick=()=>$('#recipePhotoInput').click();
   $('#recipePhotoInput').onchange=e=>{const f=e.target.files?.[0];if(f)openCropDialog(f);};
   $('#addIngredientRowBtn').onclick=()=>addIngredientEditorRow('ingredient');
@@ -2706,44 +2903,20 @@ function bindEvents(){
   cropCanvas.addEventListener('pointerup',()=>{if(cropState)cropState.drag=null;});
   cropCanvas.addEventListener('pointercancel',()=>{if(cropState)cropState.drag=null;});
   $('#favoriteRecipeBtn').onclick=async()=>{await toggleFavorite(activeRecipeId);const r=recipes.find(x=>x.id===activeRecipeId);$('#favoriteRecipeBtn').textContent=r?.favorite?'♥':'♡';};
-  $('#editRecipeBtn').onclick=()=>{const r=recipes.find(x=>x.id===activeRecipeId);if(r){$('#recipeDialog').close();openEditor(r,false);}};
+  $('#editRecipeBtn').onclick=async()=>{const r=recipes.find(x=>x.id===activeRecipeId);if(r){$('#recipeDialog').close();await openEditor(r,false);}};
   $('#editRatingStars').onclick=e=>{const btn=e.target.closest('[data-rating-value]');if(!btn||!editorDraft)return;const clicked=normalizeRating(btn.dataset.ratingValue);editorDraft.rating=normalizeRating(editorDraft.rating)===clicked?0:clicked;renderEditorRating(editorDraft.rating);};
   $('#recipeEditor').addEventListener('submit',async e=>{
     e.preventDefault();if(!editorDraft)return;
-    editorDraft.title=cleanInlineSpacing($('#editTitle').value)||'Untitled recipe';
-    editorDraft.rating=normalizeRating(editorDraft.rating);
-    editorDraft.description=cleanMultilineSpacing($('#editDescription').value);
-    editorDraft.servings=cleanInlineSpacing($('#editServings').value);
-    editorDraft.prepTime=cleanInlineSpacing($('#editPrepTime').value);
-    editorDraft.cookTime=cleanInlineSpacing($('#editCookTime').value);
-    editorDraft.restTime=cleanInlineSpacing($('#editRestTime').value);
-    editorDraft.totalTime=cleanInlineSpacing($('#editTotalTime').value);
-    editorDraft.temperature=normalizeTemperatureText($('#editTemperature').value);
-    syncTaxonomySelectionFromInput('type');
-    syncTaxonomySelectionFromInput('cuisine');
-    syncTaxonomySelectionFromInput('dietary');
-    syncTaxonomySelectionFromInput('traits');
-    editorDraft.types=taxonomyInputValues('type');
-    if(!editorDraft.types.length)editorDraft.types=['Recipe'];
-    editorDraft.type=editorDraft.types[0];
-    editorDraft.cuisine=taxonomyInputValues('cuisine');
-    editorDraft.dietary=taxonomyInputValues('dietary');
-    editorDraft.traits=taxonomyInputValues('traits');
-    editorDraft.category=editorDraft.type;
-    editorDraft.tags=[...new Set([...editorDraft.cuisine,...editorDraft.dietary,...editorDraft.traits])];
-    editorDraft.ingredients=collectIngredientEditor();
-    editorDraft.steps=collectStepEditor();
-    editorDraft.equipment=$('#editEquipment').value.split('\n').map(cleanInlineSpacing).filter(Boolean);
-    editorDraft.notes=cleanMultilineSpacing($('#editNotes').value);
-    editorDraft.nutrition=cleanMultilineSpacing($('#editNutrition').value);
-    editorDraft.source=editorDraft.source||{type:'manual'};editorDraft.source.url=$('#editSourceUrl').value.trim();editorDraft.source.sourceKey=editorDraft.source.url?`url:${normalizeUrl(editorDraft.source.url)}`:(editorDraft.source.fileHash?`file:${editorDraft.source.fileHash}`:(editorDraft.source.sourceKey||''));
+    syncEditorDraftFromForm();
     editorDraft.importQuality=validateRecipe(editorDraft);
-    await saveRecipe(editorDraft);$('#editorDialog').close();go('recipes');toast(t('recipeSaved'));
+    await saveRecipe(editorDraft);
+    editorDraftPersistEnabled=false;editorDraftDirty=false;clearEditorDraftBackup();
+    $('#editorDialog').close();go('recipes');toast(t('recipeSaved'));
   });
   $('#deleteRecipeBtn').onclick=async()=>{
     if(!editorDraft)return;
     if(await confirmAction(t('deleteRecipeQ'),`“${editorDraft.title}” ${t('deleteRecipeText')}`,t('delete'))){
-      await deleteRecipeMedia(editorDraft);await idbDelete('recipes',editorDraft.id);recipes=recipes.filter(r=>r.id!==editorDraft.id);state.shopping=state.shopping.map(i=>({...i,sources:(i.sources||[]).filter(id=>id!==editorDraft.id)}));await saveState();$('#editorDialog').close();renderAll();toast(t('recipeDeleted'));
+      await deleteRecipeMedia(editorDraft);await idbDelete('recipes',editorDraft.id);recipes=recipes.filter(r=>r.id!==editorDraft.id);state.shopping=state.shopping.map(i=>({...i,sources:(i.sources||[]).filter(id=>id!==editorDraft.id)}));await saveState();editorDraftPersistEnabled=false;editorDraftDirty=false;clearEditorDraftBackup();$('#editorDialog').close();renderAll();toast(t('recipeDeleted'));
     }
   };
   $('#confirmShoppingAdd').onclick=async()=>{const r=recipes.find(x=>x.id===pendingShoppingRecipeId);if(!r)return;const selected=$$('[data-pick-ingredient]:checked').map(x=>Number(x.dataset.pickIngredient));for(const idx of selected)await mergeShoppingIngredient(r.ingredients[idx],r.id,false);await saveState();$('#shoppingDialog').close();renderShopping();toast(`${selected.length} ${t('ingredientsAdded')}`);};
@@ -2756,7 +2929,7 @@ function bindEvents(){
   $$('[data-measurement]').forEach(btn=>btn.addEventListener('click',()=>setMeasurementSystem(btn.dataset.measurement)));
   document.addEventListener('change',e=>{if(e.target?.id==='languageSelect') setLanguage(e.target.value);});
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system')applyTheme();});
-  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],textTranslations:{},customTaxonomy:emptyCustomTaxonomy(),theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeFilters:emptyRecipeFilters(),recipeSort:'recent'};recipes=[];clearTranslationMemory();await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
+  $('#clearAllBtn').onclick=async()=>{if(await confirmAction(t('deleteAllQ'),t('deleteAllText'),t('deleteEverything'))){revokeAllMediaUrls();clearEditorDraftBackup();await Promise.all(['recipes','media','state','shared'].map(idbClear));state={pantry:[],available:[],shopping:[],textTranslations:{},customTaxonomy:emptyCustomTaxonomy(),theme:'system',language:state.language||'en',measurementSystem:state.measurementSystem||'metric',activeRecipeFilter:'All',recipeFilters:emptyRecipeFilters(),recipeSort:'recent'};recipes=[];clearTranslationMemory();await saveState();applyTheme();applyLanguage();renderAll();toast(t('deletedAll'));}};
 
   $('#confirmCancel').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(false);confirmResolver=null;};
   $('#confirmOk').onclick=()=>{$('#confirmDialog').close();confirmResolver?.(true);confirmResolver=null;};
@@ -2775,12 +2948,13 @@ async function init(){
   if ($('#recipeSearch')) $('#recipeSearch').value = '';
   await renderAll();
   const hash=location.hash.replace('#','');if(['cook','pantry','import','shopping','settings'].includes(hash))go(hash);else go('recipes');
+  await promptForRecoveredEditorDraft();
   if('serviceWorker' in navigator){
     try{
       // Updates are downloaded in the background but never force-reload an open
       // Recipe Vault session. The waiting worker activates after all old clients
       // are closed, so edits cannot be interrupted by a deployment.
-      const reg=await navigator.serviceWorker.register('./sw.js?v=31',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=32',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
