@@ -4,12 +4,31 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0b0b0b" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=29" />
+  <link rel="manifest" href="manifest.webmanifest?v=30" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=29" />
+  <style>
+    html{background:#f4f2ee;color-scheme:light}
+    html[data-theme="dark"]{background:#000;color-scheme:dark}
+    @media (prefers-color-scheme:dark){html:not([data-theme]){background:#000;color-scheme:dark}}
+  </style>
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem('recipe-vault-theme');
+        const dark = saved === 'dark' || (saved !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        const theme = dark ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.backgroundColor = dark ? '#000000' : '#f4f2ee';
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.content = dark ? '#000000' : '#f4f2ee';
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css?v=30" />
 </head>
 <body>
   <header class="app-header">
@@ -399,6 +418,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=29"></script>
+  <script type="module" src="app.js?v=30"></script>
 </body>
 </html>

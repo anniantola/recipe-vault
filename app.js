@@ -1,7 +1,7 @@
-import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=29';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=29';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=29';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=29';
+import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=30';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=30';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=30';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=30';
 const APP_VERSION = 29;
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -2537,10 +2537,13 @@ async function renderStorageInfo(){
 }
 
 function applyTheme(){
-  let theme=state.theme||'system';
+  const preference=state.theme||'system';
+  try{localStorage.setItem('recipe-vault-theme',preference);}catch(_){}
+  let theme=preference;
   if(theme==='system') theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
   document.documentElement.dataset.theme=theme;
-  if($('#themeSelect'))$('#themeSelect').value=state.theme||'system';
+  document.documentElement.style.backgroundColor=theme==='dark'?'#000000':'#f4f2ee';
+  if($('#themeSelect'))$('#themeSelect').value=preference;
   $('meta[name="theme-color"]').content=theme==='dark'?'#000000':'#f4f2ee';
 }
 function confirmAction(title,text,okLabel='Delete'){
@@ -2646,7 +2649,7 @@ function bindEvents(){
   $('#exportBtn').onclick=exportBackup;
   $('#exportFullZipBtn').onclick=exportFullZip;
   $('#importBackupInput').onchange=e=>{if(e.target.files[0])importBackup(e.target.files[0]);};
-  $('#themeSelect').onchange=async e=>{state.theme=e.target.value;await saveState();applyTheme();};
+  $('#themeSelect').onchange=async e=>{state.theme=e.target.value;applyTheme();await saveState();};
   $$('[data-language]').forEach(btn=>btn.addEventListener('click',()=>setLanguage(btn.dataset.language)));
   $$('[data-measurement]').forEach(btn=>btn.addEventListener('click',()=>setMeasurementSystem(btn.dataset.measurement)));
   document.addEventListener('change',e=>{if(e.target?.id==='languageSelect') setLanguage(e.target.value);});
@@ -2678,7 +2681,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=29',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=30',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
