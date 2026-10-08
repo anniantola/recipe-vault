@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 
 export const TAXONOMY_OPTIONS = {
@@ -166,26 +166,52 @@ export function quickHash(text=''){
 export function classifyRecipe(recipe={}){
   const ingredientText=(recipe.ingredients||[]).map(i=>i?.name||i?.ingredient||i?.raw||'').join(' ');
   const text=[recipe.title,recipe.description,recipe.category,(recipe.tags||[]).join(' '),ingredientText,(recipe.steps||[]).join(' ')].filter(Boolean).join('\n');
-  const existingType=String(recipe.type||recipe.category||'').trim();
-  // `Dinner` was an old broad bucket. Re-run classification for it so stronger
-  // evidence such as spaghetti/penne can migrate legacy recipes to Pasta.
-  const normalizedExisting=normalizeTaxonomyValue(existingType,'type');
-  const legacyBroad=/^(?:recipe|dinner)$/i.test(existingType);
-  let type=existingType && !legacyBroad ? existingType : '';
-  if(!type){ for(const [name,re] of TYPE_RULES){ if(re.test(text)){type=name;break;} } }
-  if(!type)type=normalizedExisting||'Recipe';
-  type=normalizeTaxonomyValue(type,'type')||'Recipe';
+  const titleText=[recipe.title,recipe.description].filter(Boolean).join('\n');
+  const knownTypeValues=values=>(values||[]).filter(value=>TAXONOMY_GROUP_BY_KEY.get(taxonomyKey(value))==='type');
+  const hasExplicitTypes=Array.isArray(recipe.types)&&recipe.types.some(v=>String(v||'').trim());
+  const rawLegacy=String(recipe.type||recipe.category||'').trim();
+  const legacyBroad=/^(?:recipe|dinner)$/i.test(rawLegacy);
+  let types;
+  if(hasExplicitTypes){
+    // Once a recipe has the v28 `types` array, it is user-authoritative. Do not
+    // silently re-add an inferred type that the user deliberately toggled off.
+    types=normalizeTaxonomyList(recipe.types,'type');
+  }else{
+    const explicitTypes=[
+      recipe.type,
+      recipe.category,
+      ...knownTypeValues(recipe.tags),
+      ...knownTypeValues(recipe.traits),
+      ...knownTypeValues(recipe.cuisine),
+      ...knownTypeValues(recipe.dietary)
+    ].filter(Boolean);
+    types=normalizeTaxonomyList(explicitTypes,'type');
+    const strongMatches=TYPE_RULES.filter(([,re])=>re.test(titleText)).map(([name])=>name);
+    if(!types.length || types.every(t=>t==='Recipe') || legacyBroad){
+      const inferred=TYPE_RULES.filter(([,re])=>re.test(text)).map(([name])=>name);
+      const preferred=strongMatches.length?strongMatches:inferred.slice(0,1);
+      let retained=types.filter(t=>t!=='Recipe');
+      if(/^dinner$/i.test(rawLegacy)&&preferred.length)retained=retained.filter(t=>t!=='Main');
+      types=normalizeTaxonomyList([...preferred,...retained],'type');
+      if(!types.length && normalizeTaxonomyValue(rawLegacy,'type')!=='Recipe')types=[normalizeTaxonomyValue(rawLegacy,'type')];
+    }else{
+      // Legacy single-type records can pick up additional strong title/description
+      // matches once during migration. After that the stored array is authoritative.
+      types=normalizeTaxonomyList([...types,...strongMatches],'type');
+    }
+  }
+  if(types.length>1)types=types.filter(t=>t!=='Recipe');
+  if(!types.length)types=['Recipe'];
+  const type=types[0];
   const legacyTags=recipe.tags||[];
   const cuisine=normalizeTaxonomyList([...(recipe.cuisine||[]),...legacyTags.filter(t=>CUISINE_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'cuisine')))),...CUISINE_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'cuisine');
   const dietary=normalizeTaxonomyList([...(recipe.dietary||[]),...legacyTags.filter(t=>DIET_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'dietary')))),...DIET_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'dietary');
   const traits=normalizeTaxonomyList([...(recipe.traits||[]),...legacyTags.filter(t=>TRAIT_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'traits')))),...TRAIT_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'traits');
-  // Long recipes should not be automatically branded Quick just because the word occurs.
   const total=durationMinutes(recipe.totalTime||'');
   let cleanTraits=traits.filter(t=>!(t==='Quick'&&Number.isFinite(total)&&total>45));
-  // Total time is objective enough to infer Quick; other subjective traits still require explicit evidence.
   if(Number.isFinite(total)&&total<=30&&!cleanTraits.includes('Quick'))cleanTraits.push('Quick');
   cleanTraits=normalizeTaxonomyList(cleanTraits,'traits');
-  return {type,cuisine,dietary,traits:cleanTraits};
+  return {type,types,cuisine,dietary,traits:cleanTraits};
 }
 
 export function durationMinutes(value=''){
@@ -219,6 +245,7 @@ export function upgradeRecipeSchema(recipe={}){
   }
   if(!Array.isArray(r.equipment))r.equipment=typeof r.equipment==='string'?r.equipment.split(/\n+/).map(x=>x.trim()).filter(Boolean):[];
   const tax=classifyRecipe(r);
+  r.types=tax.types;
   r.type=tax.type;
   r.cuisine=tax.cuisine;
   r.dietary=tax.dietary;
@@ -319,7 +346,7 @@ export function expandIngredient(i={}){
 export function compactRecipe(recipe={}){
   const r=upgradeRecipeSchema({...recipe,source:{...(recipe.source||{})}});
   const out={
-    id:r.id,t:r.title,ty:r.type,cu:r.cuisine||[],di:r.dietary||[],tr:r.traits||[],sv:r.servings||'',pt:r.prepTime||'',ct:r.cookTime||'',rt:r.restTime||'',tt:r.totalTime||'',temp:r.temperature||'',au:r.author||'',d:r.description||'',
+    id:r.id,t:r.title,ty:r.type,tys:r.types||[r.type].filter(Boolean),cu:r.cuisine||[],di:r.dietary||[],tr:r.traits||[],sv:r.servings||'',pt:r.prepTime||'',ct:r.cookTime||'',rt:r.restTime||'',tt:r.totalTime||'',temp:r.temperature||'',au:r.author||'',d:r.description||'',
     ing:(r.ingredients||[]).map(compactIngredient),st:r.steps||[],eq:r.equipment||[],no:r.notes||'',nu:r.nutrition||'',fav:r.favorite?1:0,ra:r.rating||0,
     src:r.source||{},img:(/^data:/i.test(String(r.imageUrl||''))?'':(r.imageUrl||'')),mid:r.mediaId||'',mt:r.mediaType||'',tid:r.thumbnailId||'',cid:r.coverMediaId||'',cp:r.coverPreset||'',sl:r.sourceLanguage||'',xl:r.translations||{},xm:r.translationMeta||{},tu:r.translationUpdatedAt||0,tm:r.translationMissing||[],ca:r.createdAt||0,ua:r.updatedAt||0
   };
@@ -328,6 +355,6 @@ export function compactRecipe(recipe={}){
 export function expandRecipe(r={}){
   if(!('t' in r))return upgradeRecipeSchema(r);
   return upgradeRecipeSchema({
-    id:r.id,title:r.t||'',type:r.ty||'Recipe',category:r.ty||'Recipe',cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),rating:Number(r.ra)||0,source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',sourceLanguage:r.sl||'',translations:r.xl||{},translationMeta:r.xm||{},translationUpdatedAt:r.tu||0,translationMissing:r.tm||[],createdAt:r.ca||0,updatedAt:r.ua||0
+    id:r.id,title:r.t||'',...(Array.isArray(r.tys)&&r.tys.length?{types:r.tys}:{}),type:r.ty||((Array.isArray(r.tys)&&r.tys[0])||'Recipe'),category:r.ty||((Array.isArray(r.tys)&&r.tys[0])||'Recipe'),cuisine:r.cu||[],dietary:r.di||[],traits:r.tr||[],tags:uniq([...(r.cu||[]),...(r.di||[]),...(r.tr||[])]),servings:r.sv||'',prepTime:r.pt||'',cookTime:r.ct||'',restTime:r.rt||'',totalTime:r.tt||'',temperature:r.temp||'',author:r.au||'',description:r.d||'',ingredients:(r.ing||[]).map(expandIngredient),steps:r.st||[],equipment:r.eq||[],notes:r.no||'',nutrition:r.nu||'',favorite:Boolean(r.fav),rating:Number(r.ra)||0,source:r.src||{},imageUrl:r.img||'',mediaId:r.mid||'',mediaType:r.mt||'',thumbnailId:r.tid||'',coverMediaId:r.cid||'',coverPreset:r.cp||'',sourceLanguage:r.sl||'',translations:r.xl||{},translationMeta:r.xm||{},translationUpdatedAt:r.tu||0,translationMissing:r.tm||[],createdAt:r.ca||0,updatedAt:r.ua||0
   });
 }

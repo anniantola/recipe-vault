@@ -1,4 +1,4 @@
-import { durationMinutes, normalizeUrl } from './recipe-core.js?v=27';
+import { durationMinutes, normalizeUrl } from './recipe-core.js?v=28';
 
 const clean = (value='') => String(value ?? '')
   .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g,' ')
@@ -16,8 +16,10 @@ const stripMarkup = (value='') => clean(String(value||'')
 
 export function createRecipeDraft(overrides={}) {
   const now=Date.now();
+  const primaryType=String(overrides.type||overrides.category||'Recipe').trim()||'Recipe';
+  const types=Array.isArray(overrides.types)&&overrides.types.length?overrides.types:[primaryType];
   return {
-    id:'', title:'', type:'Recipe', category:'Recipe', cuisine:[], dietary:[], traits:[], tags:[],
+    id:'', title:'', types, type:primaryType, category:primaryType, cuisine:[], dietary:[], traits:[], tags:[],
     description:'', servings:'', prepTime:'', cookTime:'', restTime:'', totalTime:'', temperature:'', author:'',
     ingredients:[], steps:[], equipment:[], notes:'', nutrition:'', favorite:false, rating:0,
     source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:''},
@@ -25,6 +27,7 @@ export function createRecipeDraft(overrides={}) {
     imageUrl:'', mediaId:'', mediaType:'', thumbnailId:'', coverMediaId:'', coverPreset:'recipe',
     createdAt:now, updatedAt:now,
     ...overrides,
+    types,
     source:{type:'manual',url:'',label:'',filename:'',sourceKey:'',extractor:'',...(overrides.source||{})}
   };
 }
@@ -192,10 +195,11 @@ export function jsonLdToRecipeDraft(schema, source={}){
   const yieldValue=Array.isArray(schema.recipeYield)?schema.recipeYield.find(Boolean):schema.recipeYield;
   const cuisine=asList(schema.recipeCuisine).map(clean).filter(Boolean);
   const keywordHints=String(schema.keywords||'').split(/[,;]+/).map(clean).filter(Boolean);
-  const typeHint=normalizeRecipeCategory(schema.recipeCategory);
+  const typeHints=[...new Set(asList(schema.recipeCategory).map(normalizeRecipeCategory).filter(Boolean))];
+  const typeHint=typeHints[0]||'Recipe';
   return createRecipeDraft({
     title:clean(schema.name||source.title||'Untitled recipe'),
-    type:typeHint||'Recipe',category:typeHint||'Recipe',
+    types:typeHints.length?typeHints:['Recipe'],type:typeHint,category:typeHint,
     cuisine, tags:[...cuisine,...keywordHints],
     description:stripMarkup(schema.description||''),
     servings:clean(yieldValue||''),prepTime,cookTime,restTime,totalTime,
