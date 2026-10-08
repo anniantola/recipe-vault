@@ -1,8 +1,8 @@
-import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=33';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=33';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=33';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=33';
-const APP_VERSION = 33;
+import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=34';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=34';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=34';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=34';
+const APP_VERSION = 34;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -1867,7 +1867,7 @@ async function openRecipe(id) {
   if(!keepPantryHighlight) detailPantryHighlight=false;
   const vr=currentRecipeView(r);
   activeRecipeId=id;
-  const detailAvailableIngredients=availableIngredients();
+  const detailAvailableIngredients=allAvailable();
   const detailMatchCount=(vr.ingredients||[]).reduce((count,item,idx)=>{
     if(item.kind==='group')return count;
     const original=r.ingredients?.[idx]||item;
@@ -2972,7 +2972,7 @@ async function init(){
       // Updates are downloaded in the background but never force-reload an open
       // Recipe Vault session. The waiting worker activates after all old clients
       // are closed, so edits cannot be interrupted by a deployment.
-      const reg=await navigator.serviceWorker.register('./sw.js?v=33',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=34',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}
