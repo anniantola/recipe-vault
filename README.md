@@ -1,13 +1,13 @@
-# Recipe Vault v25
+# Recipe Vault v26
 
-Local-first multilingual recipe PWA for GitHub Pages.
+Recipe filtering and taxonomy update.
 
-## v25 rating interaction
+- Recipes now have grouped multi-select filters for Type, Cuisine, Dietary, Traits, Source and Favorites.
+- Filters combine as OR within a group and AND across groups.
+- Tapping a tag on a recipe card applies that filter directly.
+- Rating is available as a sort option.
+- The recipe editor provides controlled taxonomy suggestions while still allowing custom values.
+- Known taxonomy aliases are canonicalized and misplaced legacy tags are cleaned up.
+- Added useful dietary/trait/cuisine vocabulary including gluten-free, dairy-free, one-pot, make-ahead, freezer-friendly and spicy.
 
-- Removes the visible “Unrated” / clear-rating text from recipe details and the editor.
-- Tap any star to set a 1–5 rating.
-- Tap the currently selected star again to clear the rating back to unrated.
-- Favorites remain separate and continue to use the heart icon.
-- Existing v24 ratings and backups remain compatible.
-
-Keep your existing `.github/workflows/deploy.yml` unchanged when updating.
+Deploy the flat files at the repository root. Keep the existing GitHub Pages workflow unchanged.

@@ -1,4 +1,86 @@
-export const SCHEMA_VERSION = 20;
+export const SCHEMA_VERSION = 21;
+
+
+export const TAXONOMY_OPTIONS = {
+  type: ['Recipe','Main','Pasta','Soup','Salad','Breakfast','Dessert','Baking','Snack','Side','Drink','Sauce'],
+  cuisine: ['Italian','Finnish','Mediterranean','French','Greek','Mexican','Indian','Asian','Japanese','Thai','American'],
+  dietary: ['Vegetarian','Vegan','Gluten-free','Dairy-free'],
+  traits: ['Quick','Easy','High protein','One-pot','Make ahead','Freezer friendly','Spicy']
+};
+
+const TAXONOMY_ALIASES = {
+  type: {
+    dinner:'Main','main course':'Main','main dish':'Main','entree':'Main','entrée':'Main','paa ruoka':'Main','pääruoka':'Main','piatto principale':'Main',
+    recipe:'Recipe','resepti':'Recipe','ricetta':'Recipe',
+    dessert:'Dessert','jalikiruoka':'Dessert','jälkiruoka':'Dessert','dolce':'Dessert',
+    baking:'Baking','leivonta':'Baking','forno':'Baking','prodotti da forno':'Baking','bread':'Baking',
+    breakfast:'Breakfast','aamiainen':'Breakfast','colazione':'Breakfast',
+    soup:'Soup','keitto':'Soup','zuppa':'Soup',
+    salad:'Salad','salaatti':'Salad','insalata':'Salad',
+    drink:'Drink','juoma':'Drink','bevanda':'Drink',
+    sauce:'Sauce','kastike':'Sauce','salsa':'Sauce',
+    side:'Side','lisuke':'Side','contorno':'Side',
+    snack:'Snack','valipala':'Snack','välipala':'Snack','spuntino':'Snack',
+    pasta:'Pasta'
+  },
+  cuisine: {
+    italian:'Italian','italialainen':'Italian','italiana':'Italian','italiano':'Italian',
+    finnish:'Finnish','suomalainen':'Finnish','finlandese':'Finnish',
+    mediterranean:'Mediterranean','valimerellinen':'Mediterranean','välimerellinen':'Mediterranean','mediterranea':'Mediterranean',
+    french:'French','ranskalainen':'French','francese':'French',
+    greek:'Greek','kreikkalainen':'Greek','greca':'Greek','greco':'Greek',
+    mexican:'Mexican','meksikolainen':'Mexican','messicana':'Mexican','messicano':'Mexican',
+    indian:'Indian','intialainen':'Indian','indiana':'Indian','indiano':'Indian',
+    asian:'Asian','aasialainen':'Asian','asiatica':'Asian','asiatico':'Asian',
+    japanese:'Japanese','japanilainen':'Japanese','giapponese':'Japanese',
+    thai:'Thai','thaimaalainen':'Thai','thailandese':'Thai',
+    american:'American','amerikkalainen':'American','americana':'American','americano':'American'
+  },
+  dietary: {
+    vegetarian:'Vegetarian','kasvis':'Vegetarian','kasvisruoka':'Vegetarian','vegetariana':'Vegetarian','vegetariano':'Vegetarian',
+    vegan:'Vegan','vegaaninen':'Vegan','vegaani':'Vegan','vegana':'Vegan','vegano':'Vegan',
+    'gluten free':'Gluten-free','gluteeniton':'Gluten-free','senza glutine':'Gluten-free',
+    'dairy free':'Dairy-free','maidoton':'Dairy-free','senza latticini':'Dairy-free'
+  },
+  traits: {
+    quick:'Quick','nopea':'Quick','veloce':'Quick',
+    easy:'Easy','helppo':'Easy','facile':'Easy',
+    'high protein':'High protein','high-protein':'High protein','protein rich':'High protein','protein-rich':'High protein','runsasproteiininen':'High protein','proteiinipitoinen':'High protein','ricca di proteine':'High protein','alto contenuto proteico':'High protein',
+    'one pot':'One-pot','one-pot':'One-pot','yksi pata':'One-pot','yksi kattila':'One-pot','monopentola':'One-pot',
+    'make ahead':'Make ahead','valmista etukateen':'Make ahead','valmista etukäteen':'Make ahead','preparabile in anticipo':'Make ahead',
+    'freezer friendly':'Freezer friendly','pakastettava':'Freezer friendly','sopii pakastukseen':'Freezer friendly','adatta al congelatore':'Freezer friendly',
+    spicy:'Spicy','tulinen':'Spicy','piccante':'Spicy'
+  }
+};
+
+function taxonomyKey(value=''){return plain(value);}
+const TAXONOMY_GROUP_BY_KEY = (()=>{
+  const out=new Map();
+  for(const [group,values] of Object.entries(TAXONOMY_OPTIONS)) for(const value of values) out.set(taxonomyKey(value),group);
+  for(const [group,aliases] of Object.entries(TAXONOMY_ALIASES)) for(const key of Object.keys(aliases)) out.set(taxonomyKey(key),group);
+  return out;
+})();
+export function normalizeTaxonomyValue(value='',group=''){
+  const raw=String(value||'').trim();if(!raw)return '';
+  const key=taxonomyKey(raw);
+  const aliases=TAXONOMY_ALIASES[group]||{};
+  const alias=Object.entries(aliases).find(([k])=>taxonomyKey(k)===key);
+  if(alias)return alias[1];
+  const canonical=(TAXONOMY_OPTIONS[group]||[]).find(v=>taxonomyKey(v)===key);
+  return canonical||raw;
+}
+export function normalizeTaxonomyList(values=[],group=''){
+  const out=[];
+  for(const value of values||[]){
+    const raw=String(value||'').trim();if(!raw)continue;
+    const key=taxonomyKey(raw),belongs=TAXONOMY_GROUP_BY_KEY.get(key);
+    // Known taxonomy values only belong in their defined group. Unknown custom values are preserved.
+    if(belongs && belongs!==group)continue;
+    const normalized=normalizeTaxonomyValue(raw,group);
+    if(normalized && !out.some(v=>taxonomyKey(v)===taxonomyKey(normalized)))out.push(normalized);
+  }
+  return out;
+}
 
 const TYPE_RULES = [
   ['Dessert', /\b(cake|cheesecake|cookie|cookies|brownie|dessert|pudding|tart|ice cream|kakku|jälkiruoka|dolce|torta|biscotti)\b/i],
@@ -9,6 +91,8 @@ const TYPE_RULES = [
   ['Drink', /\b(cocktail|smoothie|drink|lemonade|juoma|bevanda|limonata)\b/i],
   ['Sauce', /\b(sauce|dressing|dip|pesto|kastike|salsa|condimento)\b/i],
   ['Baking', /\b(panettone|bread|focaccia|bun|buns|dough|muffins?|scones?|leipä|pulla|taikina|pane|impasto)\b/i],
+  ['Snack', /\b(snack|välipala|valipala|spuntino)\b/i],
+  ['Side', /\b(side dish|side|lisuke|contorno)\b/i],
   ['Main', /\b(chicken|beef|pork|salmon|tofu|rice|curry|risotto|pizza|kana|nauta|possu|lohi|riisi|pollo|manzo|maiale|salmone|riso)\b/i]
 ];
 const CUISINE_RULES = [
@@ -16,16 +100,28 @@ const CUISINE_RULES = [
   ['Finnish', /\b(finnish|suomalainen|karjalan|lohikeitto|rieska|korvapuusti)\b/i],
   ['Mexican', /\b(mexican|tacos?|tortilla|guacamole|quesadilla)\b/i],
   ['Indian', /\b(indian|garam masala|tikka|dal|dahl|naan)\b/i],
-  ['Asian', /\b(soy sauce|sesame oil|miso|gochujang|rice vinegar|noodles|soijakastike|seesamiöljy)\b/i]
+  ['Mediterranean', /\b(mediterranean|välimerellinen|valimerellinen|mediterranea|mediterraneo)\b/i],
+  ['French', /\b(french|ranskalainen|français|francese|ratatouille|quiche)\b/i],
+  ['Greek', /\b(greek|kreikkalainen|greco|greca|feta|tzatziki)\b/i],
+  ['Japanese', /\b(japanese|japanilainen|giapponese|miso|sushi|mirin|dashi)\b/i],
+  ['Thai', /\b(thai|thaimaalainen|thailandese|fish sauce|kaffir|lemongrass|nam pla)\b/i],
+  ['American', /\b(american|amerikkalainen|americana|americano|barbecue|bbq)\b/i],
+  ['Asian', /\b(soy sauce|sesame oil|gochujang|rice vinegar|noodles|soijakastike|seesamiöljy)\b/i]
 ];
 const DIET_RULES = [
   ['Vegan', /\b(vegan|vegaaninen|vegano|vegana)\b/i],
-  ['Vegetarian', /\b(vegetarian|kasvis|vegetariano|vegetariana)\b/i]
+  ['Vegetarian', /\b(vegetarian|kasvis|vegetariano|vegetariana)\b/i],
+  ['Gluten-free', /\b(gluten[- ]free|gluteeniton|senza glutine)\b/i],
+  ['Dairy-free', /\b(dairy[- ]free|maidoton|senza latticini)\b/i]
 ];
 const TRAIT_RULES = [
   ['Quick', /\b(quick|nopea|veloce)\b/i],
   ['Easy', /\b(easy|helppo|facile)\b/i],
-  ['High protein', /\b(high protein|protein[- ]rich|proteiinipitoinen|alto contenuto proteico)\b/i]
+  ['High protein', /\b(high protein|protein[- ]rich|proteiinipitoinen|runsasproteiininen|alto contenuto proteico)\b/i],
+  ['One-pot', /\b(one[- ]pot|one pot|yksi kattila|yksi pata|monopentola)\b/i],
+  ['Make ahead', /\b(make[- ]ahead|make ahead|valmista etukäteen|preparabile in anticipo)\b/i],
+  ['Freezer friendly', /\b(freezer[- ]friendly|freezer friendly|sopii pakastukseen|adatta al congelatore)\b/i],
+  ['Spicy', /\b(spicy|hot and spicy|tulinen|piccante)\b/i]
 ];
 
 export const STAPLE_CANONICALS = new Set([
@@ -73,16 +169,22 @@ export function classifyRecipe(recipe={}){
   const existingType=String(recipe.type||recipe.category||'').trim();
   // `Dinner` was an old broad bucket. Re-run classification for it so stronger
   // evidence such as spaghetti/penne can migrate legacy recipes to Pasta.
+  const normalizedExisting=normalizeTaxonomyValue(existingType,'type');
   const legacyBroad=/^(?:recipe|dinner)$/i.test(existingType);
   let type=existingType && !legacyBroad ? existingType : '';
   if(!type){ for(const [name,re] of TYPE_RULES){ if(re.test(text)){type=name;break;} } }
-  if(!type)type='Recipe';
-  const cuisine=uniq([...(recipe.cuisine||[]),...(recipe.tags||[]).filter(t=>CUISINE_RULES.some(([n])=>n===t)),...CUISINE_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)]);
-  const dietary=uniq([...(recipe.dietary||[]),...(recipe.tags||[]).filter(t=>DIET_RULES.some(([n])=>n===t)),...DIET_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)]);
-  const traits=uniq([...(recipe.traits||[]),...(recipe.tags||[]).filter(t=>TRAIT_RULES.some(([n])=>n===t)),...TRAIT_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)]);
+  if(!type)type=normalizedExisting||'Recipe';
+  type=normalizeTaxonomyValue(type,'type')||'Recipe';
+  const legacyTags=recipe.tags||[];
+  const cuisine=normalizeTaxonomyList([...(recipe.cuisine||[]),...legacyTags.filter(t=>CUISINE_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'cuisine')))),...CUISINE_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'cuisine');
+  const dietary=normalizeTaxonomyList([...(recipe.dietary||[]),...legacyTags.filter(t=>DIET_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'dietary')))),...DIET_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'dietary');
+  const traits=normalizeTaxonomyList([...(recipe.traits||[]),...legacyTags.filter(t=>TRAIT_RULES.some(([n])=>taxonomyKey(n)===taxonomyKey(normalizeTaxonomyValue(t,'traits')))),...TRAIT_RULES.filter(([,re])=>re.test(text)).map(([n])=>n)],'traits');
   // Long recipes should not be automatically branded Quick just because the word occurs.
   const total=durationMinutes(recipe.totalTime||'');
-  const cleanTraits=traits.filter(t=>!(t==='Quick'&&Number.isFinite(total)&&total>45));
+  let cleanTraits=traits.filter(t=>!(t==='Quick'&&Number.isFinite(total)&&total>45));
+  // Total time is objective enough to infer Quick; other subjective traits still require explicit evidence.
+  if(Number.isFinite(total)&&total<=30&&!cleanTraits.includes('Quick'))cleanTraits.push('Quick');
+  cleanTraits=normalizeTaxonomyList(cleanTraits,'traits');
   return {type,cuisine,dietary,traits:cleanTraits};
 }
 

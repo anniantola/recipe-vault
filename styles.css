@@ -328,3 +328,26 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .rating-editor-field{display:flex;flex-direction:column;gap:6px}
 .rating-editor-row{display:flex;align-items:center;gap:10px;min-height:34px}
 .rating-editor-row .rating-star{font-size:29px}
+
+/* v26 recipe filters + taxonomy controls */
+.recipe-filter-toolbar { display:flex; align-items:center; gap:8px; margin: 0 0 8px; flex-wrap:wrap; }
+.recipe-filter-toolbar .text-btn { margin-left:auto; }
+.filter-toggle { display:inline-flex; align-items:center; gap:7px; }
+.filter-count { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:inline-grid; place-items:center; background:var(--text); color:var(--bg); font-size:10px; font-weight:800; }
+.filter-count.hidden { display:none; }
+#recipeFavoritesFilter.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+.active-filter-row { padding-bottom:8px; }
+.active-filter-row:empty { display:none; }
+.recipe-filter-panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:13px; margin:0 0 14px; }
+.filter-group + .filter-group { margin-top:13px; padding-top:12px; border-top:1px solid var(--line); }
+.filter-group-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:8px; }
+.filter-options { display:flex; flex-wrap:wrap; gap:7px; }
+.filter-option { border:1px solid var(--line); background:var(--surface-2); color:var(--text); border-radius:999px; padding:7px 10px; font-size:12px; font-weight:700; }
+.filter-option.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+.active-filter-chip { display:inline-flex; align-items:center; gap:6px; }
+.active-filter-chip::after { content:'×'; font-size:14px; line-height:1; opacity:.7; }
+.mini-tag.clickable-tag { cursor:pointer; border:0; color:inherit; font:inherit; }
+.mini-tag.clickable-tag:active { transform:scale(.97); }
+.taxonomy-suggestions { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.taxonomy-suggestion { border:1px solid var(--line); background:var(--surface-2); color:var(--muted); border-radius:999px; padding:5px 8px; font-size:11px; font-weight:700; }
+.taxonomy-suggestion.active { color:var(--bg); background:var(--text); border-color:var(--text); }

@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0b0b0b" />
   <meta name="description" content="A private, local-first recipe library, ingredient matcher and shopping list." />
   <title>Recipe Vault</title>
-  <link rel="manifest" href="manifest.webmanifest?v=25" />
+  <link rel="manifest" href="manifest.webmanifest?v=26" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=26" />
 </head>
 <body>
   <header class="app-header">
@@ -26,7 +26,15 @@
         <span class="search-icon">⌕</span>
         <input id="recipeSearch" autocomplete="off" type="search" placeholder="Search recipes, ingredients, tags…" data-i18n-placeholder="searchRecipes" autocomplete="off" />
       </div>
-      <div class="filter-row" id="recipeFilters"></div>
+      <div class="recipe-filter-toolbar">
+        <button id="recipeFilterToggle" class="secondary small filter-toggle" type="button" aria-expanded="false"><span data-i18n="filters">Filters</span><span id="recipeFilterCount" class="filter-count hidden">0</span></button>
+        <button id="recipeFavoritesFilter" class="secondary small" type="button">♡ <span data-i18n="favorites">Favorites</span></button>
+        <button id="clearRecipeFilters" class="text-btn hidden" type="button" data-i18n="clearFilters">Clear filters</button>
+      </div>
+      <div class="filter-row active-filter-row" id="recipeFilters"></div>
+      <div class="recipe-filter-panel hidden" id="recipeFilterPanel">
+        <div id="recipeFilterGroups"></div>
+      </div>
       <div class="section-row">
         <div>
           <div class="eyebrow" data-i18n="yourCollection">YOUR COLLECTION</div>
@@ -36,6 +44,7 @@
           <option value="recent" data-i18n="newest">Newest</option>
           <option value="title" data-i18n="az">A–Z</option>
           <option value="favorite" data-i18n="favorites">Favorites</option>
+          <option value="rating" data-i18n="rating">Rating</option>
         </select>
       </div>
       <div id="recipeGrid" class="recipe-grid"></div>
@@ -313,10 +322,10 @@
           <label><span data-i18n="ovenTemperature">Oven</span><input id="editTemperature" placeholder="e.g. 180°C / 350°F" data-i18n-placeholder="ovenTemperaturePlaceholder" /></label>
         </div>
         <div class="taxonomy-editor">
-          <label><span data-i18n="recipeType">Type</span><input id="editType" placeholder="Pasta, Soup, Dessert…" data-i18n-placeholder="typePlaceholder" /></label>
-          <label><span data-i18n="cuisine">Cuisine</span><input id="editCuisine" placeholder="Italian, Finnish…" data-i18n-placeholder="cuisinePlaceholder" /></label>
-          <label><span data-i18n="dietary">Dietary</span><input id="editDietary" placeholder="Vegetarian, Vegan…" data-i18n-placeholder="dietaryPlaceholder" /></label>
-          <label><span data-i18n="traits">Traits</span><input id="editTraits" placeholder="Quick, Easy…" data-i18n-placeholder="traitsPlaceholder" /></label>
+          <label><span data-i18n="recipeType">Type</span><input id="editType" placeholder="Pasta, Soup, Dessert…" data-i18n-placeholder="typePlaceholder" /><div id="typeSuggestions" class="taxonomy-suggestions"></div></label>
+          <label><span data-i18n="cuisine">Cuisine</span><input id="editCuisine" placeholder="Italian, Finnish…" data-i18n-placeholder="cuisinePlaceholder" /><div id="cuisineSuggestions" class="taxonomy-suggestions"></div></label>
+          <label><span data-i18n="dietary">Dietary</span><input id="editDietary" placeholder="Vegetarian, Vegan…" data-i18n-placeholder="dietaryPlaceholder" /><div id="dietarySuggestions" class="taxonomy-suggestions"></div></label>
+          <label><span data-i18n="traits">Traits</span><input id="editTraits" placeholder="Quick, Easy…" data-i18n-placeholder="traitsPlaceholder" /><div id="traitsSuggestions" class="taxonomy-suggestions"></div></label>
         </div>
         <section class="structured-editor-section">
           <div class="structured-editor-heading"><span data-i18n="ingredients">Ingredients</span><div><button type="button" id="addIngredientGroupBtn" class="text-btn" data-i18n="addSection">+ Section</button><button type="button" id="addIngredientRowBtn" class="text-btn" data-i18n="addIngredient">+ Ingredient</button></div></div>
@@ -390,6 +399,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script type="module" src="app.js?v=25"></script>
+  <script type="module" src="app.js?v=26"></script>
 </body>
 </html>
