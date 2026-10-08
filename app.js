@@ -1,8 +1,8 @@
-import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=26';
-import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=26';
-import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=26';
-import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=26';
-const APP_VERSION = 26;
+import { SCHEMA_VERSION, TAXONOMY_OPTIONS, normalizeTaxonomyValue, normalizeTaxonomyList, upgradeRecipeSchema, validateRecipe, classifyRecipe, defaultCoverSvg, sourceKeyFor, normalizeUrl, hashBlob, quickHash, ingredientRole, compactRecipe, expandRecipe } from './recipe-core.js?v=27';
+import { createRecipeDraft, recipeSchemaFromHtml, recipeMetadataFromHtml, htmlToRecipeText, jsonLdToRecipeDraft, repairRecipeDraft, sanitizeNutritionText } from './recipe-import.js?v=27';
+import { openDb, idbGetAll as storageGetAll, idbGet as storageGet, idbPut as storagePut, idbDelete as storageDelete, idbClear as storageClear } from './storage.js?v=27';
+import { SUPPORTED_LANGUAGES, TRANSLATION_ENGINE_VERSION, clearTranslationMemory, detectLanguage, deterministicTranslation, ensureRecipeTranslations, localizedRecipe, recipeTranslationReady, makeTextTranslationEntry, localizedText, textVariants, textTranslationKey, translationEntryFromValues } from './translations.js?v=27';
+const APP_VERSION = 27;
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -142,6 +142,7 @@ const MAIN_PAGES = new Set(['recipes','cook','pantry','shopping','settings']);
 let currentPage = 'recipes';
 let previousMainPage = 'recipes';
 let editorDraft = null;
+let editorTaxonomySelections = { cuisine: [], dietary: [], traits: [] };
 let deferredInstallPrompt = null;
 let pendingShoppingRecipeId = null;
 let confirmResolver = null;
@@ -1794,26 +1795,41 @@ function stepEditorRow(text=''){
 function renderStepEditor(steps=[]){const root=$('#stepEditorRows');root.innerHTML=(steps.length?steps:['']).map(stepEditorRow).join('');bindEditorRowActions(root);}
 function addStepEditorRow(){const root=$('#stepEditorRows');root.insertAdjacentHTML('beforeend',stepEditorRow(''));bindEditorRowActions(root);}
 function collectStepEditor(){return $$('[data-step-row]',$('#stepEditorRows')).map(row=>cleanInlineSpacing($('.step-text',row)?.value||'').replace(/^\s*\d+[.)]\s*/, '')).filter(Boolean);}
-function taxonomyInputValues(group){
-  const id={type:'#editType',cuisine:'#editCuisine',dietary:'#editDietary',traits:'#editTraits'}[group],el=$(id);if(!el)return [];
+function taxonomyEditorId(group){return {type:'#editType',cuisine:'#editCuisine',dietary:'#editDietary',traits:'#editTraits'}[group];}
+function parseTaxonomyInput(group){
+  const el=$(taxonomyEditorId(group));if(!el)return [];
   if(group==='type')return [normalizeTaxonomyValue(cleanInlineSpacing(el.value),group)].filter(Boolean);
   return normalizeTaxonomyList(el.value.split(',').map(cleanInlineSpacing).filter(Boolean),group);
+}
+function syncTaxonomySelectionFromInput(group){
+  if(group==='type')return;
+  editorTaxonomySelections[group]=parseTaxonomyInput(group);
+}
+function taxonomyInputValues(group){
+  if(group==='type')return parseTaxonomyInput(group);
+  return [...(editorTaxonomySelections[group]||[])];
+}
+function setTaxonomyInputValues(group,values){
+  const input=$(taxonomyEditorId(group));if(!input)return;
+  const normalized=normalizeTaxonomyList(values,group);
+  editorTaxonomySelections[group]=normalized;
+  input.value=normalized.join(', ');
 }
 function renderTaxonomySuggestions(){
   const roots={type:'#typeSuggestions',cuisine:'#cuisineSuggestions',dietary:'#dietarySuggestions',traits:'#traitsSuggestions'};
   for(const group of Object.keys(roots)){
     const root=$(roots[group]);if(!root)continue;
-    const current=taxonomyInputValues(group);
-    root.innerHTML=(TAXONOMY_OPTIONS[group]||[]).map(value=>`<button type="button" class="taxonomy-suggestion ${current.includes(value)?'active':''}" data-taxonomy-group="${group}" data-taxonomy-value="${escapeHtml(value)}" aria-pressed="${current.includes(value)?'true':'false'}">${escapeHtml(displayTaxonomy(value))}</button>`).join('');
+    const current=taxonomyInputValues(group),multi=group!=='type';
+    root.innerHTML=(TAXONOMY_OPTIONS[group]||[]).map(value=>`<button type="button" class="taxonomy-suggestion ${multi?'multi ':''}${current.includes(value)?'active':''}" data-taxonomy-group="${group}" data-taxonomy-value="${escapeHtml(value)}" aria-pressed="${current.includes(value)?'true':'false'}">${escapeHtml(displayTaxonomy(value))}</button>`).join('');
   }
   $$('[data-taxonomy-group]').forEach(btn=>btn.onclick=()=>{
     const group=btn.dataset.taxonomyGroup,value=btn.dataset.taxonomyValue;
-    const id={type:'#editType',cuisine:'#editCuisine',dietary:'#editDietary',traits:'#editTraits'}[group],input=$(id);if(!input)return;
+    const input=$(taxonomyEditorId(group));if(!input)return;
     if(group==='type')input.value=value;
     else{
-      const values=taxonomyInputValues(group),idx=values.indexOf(value);
+      const values=[...(editorTaxonomySelections[group]||[])],idx=values.indexOf(value);
       if(idx>=0)values.splice(idx,1);else values.push(value);
-      input.value=values.join(', ');
+      setTaxonomyInputValues(group,values);
     }
     renderTaxonomySuggestions();
   });
@@ -1832,9 +1848,14 @@ function openEditor(recipe, isNew=false) {
   $('#editTotalTime').value=recipe.totalTime||'';
   $('#editTemperature').value=recipe.temperature||'';
   $('#editType').value=recipe.type||recipe.category||'Recipe';
-  $('#editCuisine').value=(recipe.cuisine||[]).join(', ');
-  $('#editDietary').value=(recipe.dietary||[]).join(', ');
-  $('#editTraits').value=(recipe.traits||[]).join(', ');
+  editorTaxonomySelections={
+    cuisine:normalizeTaxonomyList(recipe.cuisine||[],'cuisine'),
+    dietary:normalizeTaxonomyList(recipe.dietary||[],'dietary'),
+    traits:normalizeTaxonomyList(recipe.traits||[],'traits')
+  };
+  $('#editCuisine').value=editorTaxonomySelections.cuisine.join(', ');
+  $('#editDietary').value=editorTaxonomySelections.dietary.join(', ');
+  $('#editTraits').value=editorTaxonomySelections.traits.join(', ');
   renderTaxonomySuggestions();
   renderIngredientEditor(recipe.ingredients||[]);
   renderStepEditor(recipe.steps||[]);
@@ -2461,7 +2482,7 @@ function bindEvents(){
   $('#recipeSearch').oninput=()=>renderRecipes();
   $('#recipeSort').value=state.recipeSort||'recent';
   $('#recipeSort').onchange=async e=>{state.recipeSort=e.target.value;await saveState();renderRecipes();};
-  for(const id of ['#editType','#editCuisine','#editDietary','#editTraits'])$(id)?.addEventListener('input',renderTaxonomySuggestions);
+  for(const group of ['type','cuisine','dietary','traits'])$(taxonomyEditorId(group))?.addEventListener('input',()=>{syncTaxonomySelectionFromInput(group);renderTaxonomySuggestions();});
   $('#addAvailableIngredient').onclick=async()=>{const input=$('#availableIngredientInput');if(await addUniqueTranslatedIngredient(state.available,input.value)){input.value='';await saveState();renderAvailable();renderMatches();}else input.value='';};
   $('#availableIngredientInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#addAvailableIngredient').click();}};
   $('#pantryAddBtn').onclick=async()=>{const input=$('#pantryInput');if(await addUniqueTranslatedIngredient(state.pantry,input.value)){input.value='';await saveState();renderPantry();renderMatches();}else input.value='';};
@@ -2520,9 +2541,12 @@ function bindEvents(){
     editorDraft.totalTime=cleanInlineSpacing($('#editTotalTime').value);
     editorDraft.temperature=normalizeTemperatureText($('#editTemperature').value);
     editorDraft.type=normalizeTaxonomyValue(cleanInlineSpacing($('#editType').value)||'Recipe','type')||'Recipe';
-    editorDraft.cuisine=normalizeTaxonomyList($('#editCuisine').value.split(',').map(cleanInlineSpacing).filter(Boolean),'cuisine');
-    editorDraft.dietary=normalizeTaxonomyList($('#editDietary').value.split(',').map(cleanInlineSpacing).filter(Boolean),'dietary');
-    editorDraft.traits=normalizeTaxonomyList($('#editTraits').value.split(',').map(cleanInlineSpacing).filter(Boolean),'traits');
+    syncTaxonomySelectionFromInput('cuisine');
+    syncTaxonomySelectionFromInput('dietary');
+    syncTaxonomySelectionFromInput('traits');
+    editorDraft.cuisine=taxonomyInputValues('cuisine');
+    editorDraft.dietary=taxonomyInputValues('dietary');
+    editorDraft.traits=taxonomyInputValues('traits');
     editorDraft.category=editorDraft.type;
     editorDraft.tags=[...new Set([...editorDraft.cuisine,...editorDraft.dietary,...editorDraft.traits])];
     editorDraft.ingredients=collectIngredientEditor();
@@ -2578,7 +2602,7 @@ async function init(){
         refreshing=true;
         location.reload();
       });
-      const reg=await navigator.serviceWorker.register('./sw.js?v=26',{updateViaCache:'none'});
+      const reg=await navigator.serviceWorker.register('./sw.js?v=27',{updateViaCache:'none'});
       await reg.update().catch(()=>{});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
     }catch(e){console.warn('SW registration failed',e);}

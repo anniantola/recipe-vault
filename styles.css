@@ -351,3 +351,4 @@ main { width: min(900px, 100%); margin: 0 auto; padding: 14px 14px calc(var(--na
 .taxonomy-suggestions { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
 .taxonomy-suggestion { border:1px solid var(--line); background:var(--surface-2); color:var(--muted); border-radius:999px; padding:5px 8px; font-size:11px; font-weight:700; }
 .taxonomy-suggestion.active { color:var(--bg); background:var(--text); border-color:var(--text); }
+.taxonomy-suggestion.multi.active::before { content:'✓ '; }

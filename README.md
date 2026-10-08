@@ -1,13 +1,12 @@
-# Recipe Vault v26
+# Recipe Vault v27
 
-Recipe filtering and taxonomy update.
+Mobile-first local recipe PWA.
 
-- Recipes now have grouped multi-select filters for Type, Cuisine, Dietary, Traits, Source and Favorites.
-- Filters combine as OR within a group and AND across groups.
-- Tapping a tag on a recipe card applies that filter directly.
-- Rating is available as a sort option.
-- The recipe editor provides controlled taxonomy suggestions while still allowing custom values.
-- Known taxonomy aliases are canonicalized and misplaced legacy tags are cleaned up.
-- Added useful dietary/trait/cuisine vocabulary including gluten-free, dairy-free, one-pot, make-ahead, freezer-friendly and spicy.
+## v27
+- Recipe editor taxonomy multi-select fix.
+- Cuisine, Dietary and Traits suggestion chips are independent multi-select toggles.
+- Type remains single-select.
+- Custom comma-separated values remain supported.
+- Active multi-select chips show a check mark.
 
-Deploy the flat files at the repository root. Keep the existing GitHub Pages workflow unchanged.
+Deploy the flat app files as before. Keep your existing `.github/workflows/deploy.yml` unchanged.
